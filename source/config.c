@@ -14,8 +14,8 @@ int screen_height = 0;
 static void config_set_defaults(void) {
     config.screen_width = -1;
     config.screen_height = -1;
-    snprintf(config.data_root, sizeof(config.data_root), "%s", DEFAULT_DATA_ROOT);
-    snprintf(config.save_root, sizeof(config.save_root), "%s", DEFAULT_SAVE_ROOT);
+    config.data_root[0] = '\0';
+    config.save_root[0] = '\0';
 }
 
 int read_config(const char *file) {
@@ -64,8 +64,8 @@ int write_config(const char *file) {
 
     fprintf(fp, "screen_width=%d\n", config.screen_width);
     fprintf(fp, "screen_height=%d\n", config.screen_height);
-    fprintf(fp, "data_root=%s\n", config.data_root);
-    fprintf(fp, "save_root=%s\n", config.save_root);
+    // Don't write paths — they're always detected at runtime from getcwd()
+    // so the NRO works no matter what folder it's in
 
     fclose(fp);
     return 0;
