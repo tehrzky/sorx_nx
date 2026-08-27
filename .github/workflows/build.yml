@@ -1,10 +1,6 @@
 name: Build OpenBOR Switch NRO
 
 on:
-  push:
-    branches: [ main, master, OpenBOR-NX ]
-  pull_request:
-    branches: [ main, master, OpenBOR-NX ]
   workflow_dispatch:
 
 jobs:
