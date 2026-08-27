@@ -424,7 +424,16 @@ int main(void) {
   int boosted = 1;
   int idle_frames = 0;
 #define BOOST_IDLE_TICKS 900
-  while (appletMainLoop() && !s_sdl_thread_done) {
+    int frame_counter = 0;
+    while (appletMainLoop() && !s_sdl_thread_done) {
+    // Re-assert screen resolution every ~1 second in case SDL's Android
+    // surface globals were reset during pak switch / surface recreation.
+    // Doing this from the main thread avoids EGL-thread safety issues.
+    if (++frame_counter % 60 == 0 && e_nativeSetScreenResolution) {
+      e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
+                                   screen_width, screen_height, 1, 60.0f);
+    }
+
     AppletFocusState fs = appletGetFocusState();
     int focused = (fs == AppletFocusState_InFocus);
     if (focused != s_focused) {
