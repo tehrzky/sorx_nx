@@ -10,10 +10,10 @@ TOPDIR ?= $(CURDIR)
 include $(DEVKITPRO)/libnx/switch_rules
 
 #---------------------------------------------------------------------------------
-TARGET		:=	sorx
-APP_TITLE	:=	Streets of Rage X
-APP_AUTHOR	:=	delson
-APP_VERSION	:=	1.0.1
+TARGET		:=	openbor_nx
+APP_TITLE	:=	OpenBOR Switch
+APP_AUTHOR	:=	tehrzky
+APP_VERSION	:=	1.1.0
 BUILD		:=	build
 SOURCES		:=	source
 DATA		:=	data
@@ -32,42 +32,18 @@ CFLAGS	+=	$(INCLUDE) -D__SWITCH__
 CXXFLAGS	:= $(CFLAGS)
 
 ASFLAGS	:=	-g $(ARCH)
-# libGLESv1_CM and libGLESv2 (mesa) both define the common GL entry points
-# (glClear, glBindTexture, glTexParameteri, ...) -- SDL2's Android renderer
-# backend links against both (GLES1 immediate-mode path + GLES2 shader path),
-# so let the linker take the first definition rather than fail on duplicates.
-# --wrap the newlib allocator entry points: gpuarena.c routes nouveau's own
-# page-aligned GPU buffer allocations (memalign(0x1000, ...), used for every
-# GL texture/framebuffer) into a dedicated contiguous arena instead of
-# newlib's general heap, which repeated texture churn (video playback
-# creating/destroying real GL textures per clip) fragments badly enough to
-# eventually fail a large page-aligned request -- confirmed on real hardware
-# to surface as an unexplained hang deep inside a real glDrawArrays() call.
+
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
 			-Wl,--allow-multiple-definition -Wl,-Map,$(notdir $*.map) \
 			-Wl,--wrap,malloc -Wl,--wrap,calloc -Wl,--wrap,realloc \
 			-Wl,--wrap,memalign -Wl,--wrap,free
 
-# libSDL2.so renders through mesa (GLESv1_CM for its fixed-function path,
-# GLESv2 for its shader path) and EGL (dlopen'd by name -- see egl_shim.c).
-# libopenbor.so calls no GL directly (it only uses SDL2's high-level
-# SDL_Renderer API) and zlib for its pak/pk3-style archive reading.
 LIBS	:= -lGLESv2 -lGLESv1_CM -lEGL -lglapi -ldrm_nouveau \
 			-lz -lnx -lm
 
-#---------------------------------------------------------------------------------
-# list of directories containing libraries, this must be the top level containing
-# include and lib
-#---------------------------------------------------------------------------------
 LIBDIRS	:= $(PORTLIBS) $(LIBNX)
 
 #---------------------------------------------------------------------------------
-# no real need to edit anything past this point unless you need to add additional
-# rules for different file extensions
-#---------------------------------------------------------------------------------
-ifneq ($(BUILD),$(notdir $(CURDIR)))
-#---------------------------------------------------------------------------------
-
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 export TOPDIR	:=	$(CURDIR)
 
@@ -81,9 +57,6 @@ CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
-#---------------------------------------------------------------------------------
-# use CXX for linking C++ projects, CC for standard C
-#---------------------------------------------------------------------------------
 export LD	:=	$(CXX)
 
 export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES))
