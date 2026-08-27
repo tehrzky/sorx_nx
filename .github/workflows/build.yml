@@ -1,0 +1,39 @@
+name: Build OpenBOR Switch NRO
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Switch Dependencies
+        shell: bash
+        run: |
+          dkp-pacman -Syu --noconfirm
+          dkp-pacman -S --noconfirm \
+            switch-mesa \
+            switch-libdrm_nouveau \
+            switch-zlib
+
+      - name: Build NRO
+        shell: bash
+        run: |
+          make -j$(nproc)
+
+      - name: Upload NRO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbor-switch
+          path: |
+            *.nro
+            *.nacp
