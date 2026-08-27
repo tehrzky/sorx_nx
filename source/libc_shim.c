@@ -32,6 +32,7 @@
 #include "util.h"
 
 static int path_is_pak(const char *p);
+static void vpak_catalogs_build_once(void);
 
 // ---------------------------------------------------------------------------
 // Per-game extraction isolation: tracks which .pak is currently active and
