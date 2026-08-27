@@ -2,12 +2,10 @@ name: Build OpenBOR Switch NRO
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, OpenBOR-NX ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, OpenBOR-NX ]
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'  # runs daily at midnight
 
 jobs:
   build:
