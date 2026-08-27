@@ -302,12 +302,10 @@ static void sdl_thread_fn(void *arg) {
 // ---------------------------------------------------------------------------
 static void surface_created_cb(void) {
   void *cls = jni_activity_class();
-  debugPrintf("[egl] surface recreated, replaying nativeSetScreenResolution + onNativeResize/onNativeSurfaceChanged\n");
+  debugPrintf("[egl] surface recreated, replaying nativeSetScreenResolution\n");
   if (e_nativeSetScreenResolution)
     e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
                                  screen_width, screen_height, 1, 60.0f);
-  if (e_onNativeResize) e_onNativeResize(fake_env, cls);
-  if (e_onNativeSurfaceChanged) e_onNativeSurfaceChanged(fake_env, cls);
 }
 
 // ---------------------------------------------------------------------------
