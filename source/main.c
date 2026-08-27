@@ -297,6 +297,20 @@ static void sdl_thread_fn(void *arg) {
   s_sdl_thread_done = 1;
 }
 
+// ---------------------------------------------------------------------------
+// Surface recreation callback — must be at file scope, not inside main()
+// ---------------------------------------------------------------------------
+static void surface_created_cb(void) {
+  void *cls = jni_activity_class();
+  debugPrintf("[egl] surface recreated, replaying nativeSetScreenResolution + onNativeResize/onNativeSurfaceChanged\n");
+  if (e_nativeSetScreenResolution)
+    e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
+                                 screen_width, screen_height, 1, 60.0f);
+  if (e_onNativeResize) e_onNativeResize(fake_env, cls);
+  if (e_onNativeSurfaceChanged) e_onNativeSurfaceChanged(fake_env, cls);
+}
+
+// ---------------------------------------------------------------------------
 int main(void) {
   cpu_boost(1);
 
@@ -347,15 +361,6 @@ int main(void) {
   if (!e_nativeSetupJNI || !e_onNativeSurfaceCreated || !e_nativeRunMain)
     fatal_error("Could not resolve SDLActivity entry points.");
 
-  static void surface_created_cb(void) {
-    void *cls = jni_activity_class();
-    debugPrintf("[egl] surface recreated, replaying nativeSetScreenResolution + onNativeResize/onNativeSurfaceChanged\n");
-    if (e_nativeSetScreenResolution)
-      e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
-                                   screen_width, screen_height, 1, 60.0f);
-    if (e_onNativeResize) e_onNativeResize(fake_env, cls);
-    if (e_onNativeSurfaceChanged) e_onNativeSurfaceChanged(fake_env, cls);
-  }
   egl_shim_set_surface_cb(surface_created_cb);
 
   uintptr_t sdl_main_addr = so_try_find_addr_rx(&openbor_mod, "SDL_main");
