@@ -57,13 +57,17 @@ static void redirect_to_extracted(const char *path, char *out, size_t outsz) {
         snprintf(out, outsz, "%s", path);
         return;
     }
-    if (strncmp(path, "data/", 5) == 0 || strncmp(path, "sounds/", 7) == 0 ||
-        strncmp(path, "sprites/", 8) == 0 || strncmp(path, "models/", 7) == 0 ||
-        strncmp(path, "scripts/", 8) == 0 || strncmp(path, "levels/", 7) == 0 ||
-        strncmp(path, "video/", 6) == 0 || strncmp(path, "music/", 6) == 0 ||
-        strncmp(path, "backgrounds/", 12) == 0 || strncmp(path, "scenes/", 7) == 0 ||
-        strncmp(path, "palettes/", 9) == 0) {
-        snprintf(out, outsz, "extracted/%s/%s", g_active_pak, path);
+    // Strip leading "./" so OpenBOR's "./data/..." paths redirect correctly
+    const char *p = path;
+    if (p[0] == '.' && p[1] == '/') p += 2;
+    
+    if (strcmp(p, "data") == 0 || strncmp(p, "data/", 5) == 0 ||
+        strncmp(p, "sounds/", 7) == 0 || strncmp(p, "sprites/", 8) == 0 ||
+        strncmp(p, "models/", 7) == 0 || strncmp(p, "scripts/", 8) == 0 ||
+        strncmp(p, "levels/", 7) == 0 || strncmp(p, "video/", 6) == 0 ||
+        strncmp(p, "music/", 6) == 0 || strncmp(p, "backgrounds/", 12) == 0 ||
+        strncmp(p, "scenes/", 7) == 0 || strncmp(p, "palettes/", 9) == 0) {
+        snprintf(out, outsz, "extracted/%s/%s", g_active_pak, p);
     } else {
         snprintf(out, outsz, "%s", path);
     }
@@ -467,7 +471,7 @@ static int path_is_pak(const char *p) {
 // working exactly as before, untouched.
 typedef struct { const char *virt; const char *real; } PakAlias;
 static const PakAlias s_pak_aliases[] = {
-  { "Paks/1.0.0.pak", "bor.pak" },
+  // Empty — generic OpenBOR 4.0 engine reads real paks from Paks/ directly
 };
 #define PAK_ALIAS_N (sizeof(s_pak_aliases) / sizeof(s_pak_aliases[0]))
 
@@ -1527,9 +1531,9 @@ int open_fake(const char *path, int flags, ...) {
       // branch -- a plain, immediately-successful open() -- is the only
       // one that ever runs for it. Refresh first if it's actually a
       // different game's leftover (see vpak_asset_is_stale()'s comment).
-      if (vpak_asset_is_stale(path, fd)) {
+        if (vpak_asset_is_stale(path, fd)) {
         close(fd);
-        fd = (vpak_materialize(path) == 0) ? open(path, flags, mode) : -1;
+        fd = (vpak_materialize(path) == 0) ? open(redirected, flags, mode) : -1;
         if (fd < 0) return fd;
       }
       smallcache_track(fd, path);
