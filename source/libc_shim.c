@@ -420,7 +420,7 @@ static void redirect_to_extracted(const char *path, char *out, size_t outsz) {
     }
 }
 
-
+static int vpak_materialize(const char *path);
 
 // ---------------------------------------------------------------------------
 // Pak aliasing: OpenBOR only ever treats files under Paks/ as selectable
@@ -788,7 +788,7 @@ static void vpak_catalogs_build_once(void) {
 // first) are skipped entirely, and keep one persistently-open fd per
 // catalog's underlying pak file instead of open()/close() per asset.
 #define MKDIR_CACHE_MAX 512
-static char s_mkdir_cache[MKDIR_CACHE_MAX][300];
+static char s_mkdir_cache[MKDIR_CACHE_MAX][512];
 static int s_mkdir_cache_n;
 
 static int vpak_dir_known(const char *dir) {
@@ -1385,13 +1385,24 @@ int open_fake(const char *path, int flags, ...) {
     }
   }
 
-  char redirected[512];
+    char redirected[512];
   redirect_to_extracted(path, redirected, sizeof(redirected));
 
   int fd = open(redirected, flags, mode);
+
+  // Lazy materialization: file not extracted yet but exists in the active pak
+  if (fd < 0 && (flags & O_ACCMODE) == O_RDONLY && g_active_pak[0] != '\0') {
+    vpak_catalogs_build_once();
+    if (vpak_materialize(path) == 0) {
+      debugPrintf("[extract] %s\n", redirected);
+      fd = open(redirected, flags, mode);
+    }
+  }
+
   if (fd < 0 && strcmp(redirected, path) != 0) {
     fd = open(path, flags, mode);
   }
+  
 #if VERBOSE_IO
   debugPrintf("open(\"%s\", 0x%x) -> %d\n", path, flags, fd);
 #endif
