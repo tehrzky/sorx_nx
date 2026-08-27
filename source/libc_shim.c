@@ -293,7 +293,24 @@ static void dircache_invalidate_parent_of(const char *path);
 
 FILE *fopen_fake(const char *path, const char *mode) {
   if (!path) return NULL;
-  FILE *f = fopen(path, mode);
+
+  char redirected[512];
+  redirect_to_extracted(path, redirected, sizeof(redirected));
+
+  FILE *f = fopen(redirected, mode);
+
+  // Lazy materialization for read-only paths
+  if (!f && strchr(mode, 'r') && !strchr(mode, 'w') && !strchr(mode, 'a') && g_active_pak[0] != '\0') {
+    vpak_catalogs_build_once();
+    if (vpak_materialize(path) == 0) {
+      f = fopen(redirected, mode);
+    }
+  }
+
+  if (!f && strcmp(redirected, path) != 0) {
+    f = fopen(path, mode);
+  }
+
   if (f && strchr(mode, 'r'))
     setvbuf(f, NULL, _IOFBF, 64 * 1024);
   if (f && (strchr(mode, 'w') || strchr(mode, 'a')))
@@ -1827,7 +1844,11 @@ static DirHandle s_dirh[DIRHANDLE_MAX];
 static uint64_t g_dirh_opens, g_dirh_closes;
 
 void *opendir_fake(const char *name) {
-  DirCache *c = dircache_get(name);
+  char redirected[512];
+  redirect_to_extracted(name, redirected, sizeof(redirected));
+
+  DirCache *c = dircache_get(redirected);
+  if (!c) c = dircache_get(name);
 #if VERBOSE_IO
   debugPrintf("opendir(\"%s\") -> %s (%d entries)\n", name, c ? "ok" : "NULL", c ? c->count : 0);
 #endif
