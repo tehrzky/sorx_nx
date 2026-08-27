@@ -27,7 +27,7 @@
 
 // Master debug switch: log file (<data_root>/sorx_debug.log), nxlink stdout,
 // and all debugPrintf/[io]/[audio]/[jni] output. Off for release.
-#define DEBUG_LOG 0
+#define DEBUG_LOG 1
 // Per-file-operation logging (open/stat/access/fopen, plus every generic
 // read/lseek/close under 4KB). Was needed to trace the pak/vpak file-
 // resolution issues; now that those are fixed, this fires on nearly every
