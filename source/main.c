@@ -294,6 +294,21 @@ static void sdl_thread_fn(void *arg) {
   s_sdl_thread_done = 1;
 }
 
+// One call per *.pak (not per asset, see vpak_index_all()'s own comment --
+// indexing no longer touches individual asset bytes at all, so there's no
+// long silent gap left to paper over here): total is small (MAX_CATALOGS
+// is 8), so just print each catalog by name as it starts, plus a final
+// summary line. This is the only point in the whole run where an on-screen
+// progress line is safe to draw at all -- see this function's call site
+// below for why (SDL/EGL hasn't touched the screen yet here; it has for
+// the entire rest of the process's life after that point).
+static void extract_progress_cb(uint32_t done, uint32_t total, const char *name) {
+  if (done >= total)
+    printf("Found %u game(s).\n", (unsigned)total);
+  else
+    printf("Indexing... (%u/%u) %s\n", (unsigned)(done + 1), (unsigned)total, name);
+  consoleUpdate(NULL);
+}
 
 int main(void) {
   cpu_boost(1);
@@ -308,12 +323,12 @@ int main(void) {
   setenv("HOME", config.save_root, 1);
   chdir(config.data_root);
 
-#if !DEBUG_LOG
-  consoleInit(NULL);
-  printf("OpenBOR Switch\n\n");
-  consoleUpdate(NULL);
-  consoleExit(NULL);
-#endif
+  // Index game catalogs before any SDL/EGL context exists.
+  // Fast every boot (see vpak_index_all()'s own comment): this only reads
+  // each pak's small catalog header now, never the game's actual asset
+  // bytes, so it stays quick even with several large games installed side
+  // by side.
+  vpak_index_all(NULL);
 
   set_screen_size(config.screen_width, config.screen_height);
 
