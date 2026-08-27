@@ -6,24 +6,41 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: devkitpro/devkita64:latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Switch Dependencies
-        shell: bash
+      - name: Install devkitPro and dependencies
         run: |
-          dkp-pacman -Syu --noconfirm
-          dkp-pacman -S --noconfirm \
+          sudo apt-get update
+          sudo apt-get install -y wget
+
+          # Install devkitPro pacman
+          wget https://github.com/devkitPro/pacman/releases/download/devkitpro-pacman-1.0.1/devkitpro-pacman-1.0.1-1-x86_64.pkg.tar.xz
+          sudo pacman -U --noconfirm devkitpro-pacman-1.0.1-1-x86_64.pkg.tar.xz
+
+          # Install Switch development tools
+          sudo dkp-pacman -Syu --noconfirm
+          sudo dkp-pacman -S --noconfirm \
+            devkitA64 \
             switch-mesa \
             switch-libdrm_nouveau \
-            switch-zlib
+            switch-zlib \
+            switch-tools
 
-      - name: Build NRO
-        shell: bash
+      - name: Setup Environment
         run: |
+          echo "DEVKITPRO=/opt/devkitpro" >> $GITHUB_ENV
+          echo "DEVKITA64=/opt/devkitpro/devkitA64" >> $GITHUB_ENV
+          echo "/opt/devkitpro/devkitA64/bin" >> $GITHUB_PATH
+          echo "/opt/devkitpro/tools/bin" >> $GITHUB_PATH
+
+      - name: Build NRO with Makefile
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITA64=/opt/devkitpro/devkitA64
+          export PATH=/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH
           make -j$(nproc)
 
       - name: Upload NRO Artifact
@@ -33,3 +50,4 @@ jobs:
           path: |
             *.nro
             *.nacp
+            *.elf
