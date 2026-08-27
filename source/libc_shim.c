@@ -37,40 +37,7 @@
 // intentionally corrupt a return address.
 uintptr_t __stack_chk_guard = 0xA5A5C0DE1234BEEFull;
 
-// ---------------------------------------------------------------------------
-// Per-game extraction isolation: tracks which .pak is currently active and
-// redirects all asset paths into extracted/<PakName>/ so multiple .pak
-// files in Paks/ never overwrite each other.
-// ---------------------------------------------------------------------------
 
-static char g_active_pak[128] = {0};
-
-static void set_active_pak_from_path(const char *path) {
-    if (!path_is_pak(path)) return;
-    const char *base = strrchr(path, '/');
-    base = base ? base + 1 : path;
-    size_t len = strlen(base);
-    if (len > 4) {
-        snprintf(g_active_pak, sizeof(g_active_pak), "%.*s", (int)(len - 4), base);
-    }
-}
-
-static void redirect_to_extracted(const char *path, char *out, size_t outsz) {
-    if (g_active_pak[0] == '\0') {
-        snprintf(out, outsz, "%s", path);
-        return;
-    }
-    if (strncmp(path, "data/", 5) == 0 || strncmp(path, "sounds/", 7) == 0 ||
-        strncmp(path, "sprites/", 8) == 0 || strncmp(path, "models/", 7) == 0 ||
-        strncmp(path, "scripts/", 8) == 0 || strncmp(path, "levels/", 7) == 0 ||
-        strncmp(path, "video/", 6) == 0 || strncmp(path, "music/", 6) == 0 ||
-        strncmp(path, "backgrounds/", 12) == 0 || strncmp(path, "scenes/", 7) == 0 ||
-        strncmp(path, "palettes/", 9) == 0) {
-        snprintf(out, outsz, "extracted/%s/%s", g_active_pak, path);
-    } else {
-        snprintf(out, outsz, "%s", path);
-    }
-}
 
 // ---------------------------------------------------------------------------
 // fortify (_chk): ignore the object-size argument
@@ -415,6 +382,45 @@ static int path_is_pak(const char *p) {
   return ext[0] == '.' && (ext[1] == 'p' || ext[1] == 'P') &&
          (ext[2] == 'a' || ext[2] == 'A') && (ext[3] == 'k' || ext[3] == 'K');
 }
+
+
+
+// ---------------------------------------------------------------------------
+// Per-game extraction isolation: tracks which .pak is currently active and
+// redirects all asset paths into extracted/<PakName>/ so multiple .pak
+// files in Paks/ never overwrite each other.
+// ---------------------------------------------------------------------------
+
+static char g_active_pak[128] = {0};
+
+static void set_active_pak_from_path(const char *path) {
+    if (!path_is_pak(path)) return;
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+    size_t len = strlen(base);
+    if (len > 4) {
+        snprintf(g_active_pak, sizeof(g_active_pak), "%.*s", (int)(len - 4), base);
+    }
+}
+
+static void redirect_to_extracted(const char *path, char *out, size_t outsz) {
+    if (g_active_pak[0] == '\0') {
+        snprintf(out, outsz, "%s", path);
+        return;
+    }
+    if (strncmp(path, "data/", 5) == 0 || strncmp(path, "sounds/", 7) == 0 ||
+        strncmp(path, "sprites/", 8) == 0 || strncmp(path, "models/", 7) == 0 ||
+        strncmp(path, "scripts/", 8) == 0 || strncmp(path, "levels/", 7) == 0 ||
+        strncmp(path, "video/", 6) == 0 || strncmp(path, "music/", 6) == 0 ||
+        strncmp(path, "backgrounds/", 12) == 0 || strncmp(path, "scenes/", 7) == 0 ||
+        strncmp(path, "palettes/", 9) == 0) {
+        snprintf(out, outsz, "extracted/%s/%s", g_active_pak, path);
+    } else {
+        snprintf(out, outsz, "%s", path);
+    }
+}
+
+
 
 // ---------------------------------------------------------------------------
 // Pak aliasing: OpenBOR only ever treats files under Paks/ as selectable
