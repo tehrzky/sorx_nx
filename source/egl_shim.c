@@ -80,11 +80,6 @@ static EGLSurface eglCreateWindowSurface_log(EGLDisplay dpy, EGLConfig cfg,
 #if VERBOSE_EGL
   debugPrintf("[egl] eglCreateWindowSurface(win=%p) -> %p err=0x%x\n", (void *)win, (void *)s, eglGetError());
 #endif
-  if (s != EGL_NO_SURFACE && s_surface_cb && !s_in_surface_cb) {
-    s_in_surface_cb = 1;
-    s_surface_cb();
-    s_in_surface_cb = 0;
-  }
   return s;
 }
 
