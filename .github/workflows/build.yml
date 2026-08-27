@@ -2,10 +2,10 @@ name: Build OpenBOR Switch NRO
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, OpenBOR-NX ]
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:   # <-- enables manual "Run workflow" button
+    branches: [ main, master, OpenBOR-NX ]
+  workflow_dispatch:
 
 jobs:
   build:
