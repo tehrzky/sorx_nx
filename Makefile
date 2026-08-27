@@ -20,6 +20,8 @@ DATA		:=	data
 INCLUDES	:=	source
 
 #---------------------------------------------------------------------------------
+# options for code generation
+#---------------------------------------------------------------------------------
 ARCH	:=	-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
 
 CFLAGS	:=	-g -Wall -O2 -ffunction-sections \
@@ -42,6 +44,11 @@ LIBS	:= -lGLESv2 -lGLESv1_CM -lEGL -lglapi -ldrm_nouveau \
 LIBDIRS	:= $(PORTLIBS) $(LIBNX)
 
 #---------------------------------------------------------------------------------
+# no real need to edit anything past this point unless you need to add additional
+# rules for different file extensions
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 export TOPDIR	:=	$(CURDIR)
 
