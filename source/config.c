@@ -1,76 +1,39 @@
-/* config.c -- simple configuration parser.
- *
- * Parser structure taken from the NBA Jam / SOTN Switch wrapper lineage
- * (Andy Nguyen, fgsfds). MIT license; see LICENSE. */
+/* config.h -- OpenBOR Switch wrapper configuration.
+ * MIT license; see LICENSE. */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
 
-#include "config.h"
-#include "util.h"
+#define HIDAPI_SO_NAME  "libhidapi.so"
+#define SDL2_SO_NAME    "libSDL2.so"
+#define OPENBOR_SO_NAME "libopenbor.so"
+#define CONFIG_NAME "config.txt"
+#define LOG_NAME "debug.log"
 
-// data_root/save_root are compile-time only (not persisted) so they can't go
-// stale in config.txt across a rename.
-#define CONFIG_VARS \
-  CONFIG_VAR_INT(screen_width); \
-  CONFIG_VAR_INT(screen_height);
+#define DEFAULT_DATA_ROOT "/switch/openbor"
+#define DEFAULT_SAVE_ROOT "/switch/openbor/save"
+#define LOG_PATH DEFAULT_DATA_ROOT "/debug.log"
 
-Config config;
+#define DEBUG_LOG 0
+#define VERBOSE_IO 0
+#define VERBOSE_JNI 0
+#define VERBOSE_EGL 0
 
-// actual screen size that is in use right now
-int screen_width = 1280;
-int screen_height = 720;
+extern int screen_width;
+extern int screen_height;
 
-static inline void parse_var(const char *name, const char *value) {
-  #define CONFIG_VAR_INT(var) if (!strcmp(name, #var)) { config.var = atoi(value); return; }
-  CONFIG_VARS
-  #undef CONFIG_VAR_INT
-}
+#define ANDROID_PKG "org.openbor.engine"
 
-int read_config(const char *file) {
-  char line[1024] = { 0 };
+typedef struct {
+  int screen_width;
+  int screen_height;
+  char data_root[256];
+  char save_root[256];
+} Config;
 
-  memset(&config, 0, sizeof(Config));
-  config.screen_width = -1; // auto
-  config.screen_height = -1;
-  strlcpy(config.data_root, DEFAULT_DATA_ROOT, sizeof(config.data_root));
-  strlcpy(config.save_root, DEFAULT_SAVE_ROOT, sizeof(config.save_root));
+extern Config config;
 
-  FILE *f = fopen(file, "r");
-  if (f == NULL)
-    return -1;
+int read_config(const char *file);
+int write_config(const char *file);
 
-  do {
-    char *name = NULL, *value = NULL, *tmp = NULL;
-    if (fgets(line, sizeof(line), f) != NULL) {
-      name = line;
-      while (*name && isspace((int)*name)) ++name;
-      if (name[0] == '#') continue; // skip comments
-      for (tmp = name; *tmp && !isspace((int)*tmp); ++tmp);
-      if (*tmp != 0) {
-        *tmp = 0;
-        for (value = tmp + 1; *value && isspace((int)*value); ++value);
-        for (tmp = value + strlen(value) - 1; isspace((int)*tmp); --tmp) *tmp = 0;
-        parse_var(name, value);
-      }
-    }
-  } while (!feof(f));
-
-  fclose(f);
-  return 0;
-}
-
-int write_config(const char *file) {
-  FILE *f = fopen(file, "w");
-  if (f == NULL)
-    return -1;
-
-  #define CONFIG_VAR_INT(var) fprintf(f, "%s %d\n", #var, config.var)
-  CONFIG_VARS
-  #undef CONFIG_VAR_INT
-
-  fclose(f);
-  return 0;
-}
+#endif

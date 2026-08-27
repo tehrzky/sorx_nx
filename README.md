@@ -39,7 +39,7 @@ Saves and `config.txt` live in `/switch/sorx_nx/save/`.
 
 - At the first run, the game will extract the assets from .pak in the directory folder. (It may take a while)
 - Videos are stubbed due to decode limitation. (You can skip pressing Start)
-- Game loadings may take a while, but after loaded a game, you can play all stages with no load time.
+- Game loadings may take a while, but after loaded a game, you can play all stages with no load time..
 
 ### How to build
 
