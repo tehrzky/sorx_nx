@@ -89,10 +89,7 @@ static void resolve_data_root(void) {
   if (!base[0]) return;
   size_t l = strlen(base);
   while (l > 1 && base[l - 1] == '/') base[--l] = 0;
-  char so[300];
-  snprintf(so, sizeof(so), "%s/%s", base, OPENBOR_SO_NAME);
-  struct stat st;
-  if (stat(so, &st) != 0) return;
+  // Always use the actual NRO directory, regardless of what config.txt says
   snprintf(config.data_root, sizeof(config.data_root), "%s", base);
   snprintf(config.save_root, sizeof(config.save_root), "%s/save", base);
 }
