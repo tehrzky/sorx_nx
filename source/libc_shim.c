@@ -798,7 +798,7 @@ static int vpak_dir_known(const char *dir) {
 }
 
 static void vpak_mkdirs_for(const char *path) {
-  char buf[300];
+  char buf[512];
   snprintf(buf, sizeof(buf), "%s", path);
   for (char *p = buf + 1; *p; p++) {
     if (*p != '/') continue;
@@ -1067,7 +1067,7 @@ static int vpak_materialize(const char *path) {
   // ever leaves an orphaned ".vpaktmp" file, never a corrupt one at the
   // path OpenBOR will actually open.
   vpak_mkdirs_for(dest);
-  char tmp[320];
+  char tmp[530];
   snprintf(tmp, sizeof(tmp), "%s.vpaktmp", dest);
   int dst = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
   if (dst < 0) { debugPrintf("[vpak] materialize(\"%s\"): create failed\n", path); return -1; }
