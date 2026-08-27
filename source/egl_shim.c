@@ -23,6 +23,7 @@ typedef struct { const char *name; generic_func fn; } EglEntry;
 // NEW: callback for surface recreation (fixes black screen on pak switch)
 // ---------------------------------------------------------------------------
 static void (*s_surface_cb)(void) = NULL;
+static int s_in_surface_cb = 0;
 
 void egl_shim_set_surface_cb(void (*cb)(void)) { s_surface_cb = cb; }
 
@@ -79,8 +80,11 @@ static EGLSurface eglCreateWindowSurface_log(EGLDisplay dpy, EGLConfig cfg,
 #if VERBOSE_EGL
   debugPrintf("[egl] eglCreateWindowSurface(win=%p) -> %p err=0x%x\n", (void *)win, (void *)s, eglGetError());
 #endif
-  if (s != EGL_NO_SURFACE && s_surface_cb)
+  if (s != EGL_NO_SURFACE && s_surface_cb && !s_in_surface_cb) {
+    s_in_surface_cb = 1;
     s_surface_cb();
+    s_in_surface_cb = 0;
+  }
   return s;
 }
 
