@@ -33,12 +33,6 @@
 
 static int path_is_pak(const char *p);
 
-// openbor's NDK r21e build reads this global directly instead of the
-// TLS-based tpidr_el0+0x28 canary tls_setup_guard() sets up for the older
-// NDK r20 SDL2/hidapi builds; any fixed nonzero value works since we never
-// intentionally corrupt a return address.
-uintptr_t __stack_chk_guard = 0xA5A5C0DE1234BEEFull;
-
 // ---------------------------------------------------------------------------
 // Per-game extraction isolation: tracks which .pak is currently active and
 // redirects all asset paths into extracted/<PakName>/ so multiple .pak
@@ -75,6 +69,12 @@ static void redirect_to_extracted(const char *path, char *out, size_t outsz) {
 }
 
 static int vpak_materialize(const char *path);
+
+// openbor's NDK r21e build reads this global directly instead of the
+// TLS-based tpidr_el0+0x28 canary tls_setup_guard() sets up for the older
+// NDK r20 SDL2/hidapi builds; any fixed nonzero value works since we never
+// intentionally corrupt a return address.
+uintptr_t __stack_chk_guard = 0xA5A5C0DE1234BEEFull;
 
 // ---------------------------------------------------------------------------
 // fortify (_chk): ignore the object-size argument
@@ -1764,7 +1764,7 @@ static DirCache *dircache_get(const char *path) {
         for (size_t k = 0; base[k]; k++) {
           char a = c->names[j][k], b = base[k];
           if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
-          if (b >= 'B' && b <= 'Z') b = (char)(b - 'B' + 'b');
+          if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
           if (a != b) { already = 0; break; }
         }
       }
