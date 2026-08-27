@@ -1,0 +1,19 @@
+cat > .github/workflows/manual.yml << 'EOF'
+name: Manual Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Test
+        run: echo "Hello World"
+EOF
+
+git add .github/workflows/manual.yml
+git commit -m "Add manual workflow"
+git push origin OpenBOR-NX
