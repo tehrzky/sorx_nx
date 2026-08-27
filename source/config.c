@@ -1,4 +1,4 @@
-/* config.h -- OpenBOR Switch wrapper configuration.
+/* config.c -- OpenBOR Switch wrapper configuration.
  * MIT license; see LICENSE. */
 
 #include <stdio.h>
@@ -6,39 +6,67 @@
 #include <stdlib.h>
 #include "config.h"
 
-#ifndef __CONFIG_H__
-#define __CONFIG_H__
-
-#define HIDAPI_SO_NAME  "libhidapi.so"
-#define SDL2_SO_NAME    "libSDL2.so"
-#define OPENBOR_SO_NAME "libopenbor.so"
-#define CONFIG_NAME "config.txt"
-#define LOG_NAME "debug.log"
-
-#define DEFAULT_DATA_ROOT "/switch/openbor"
-#define DEFAULT_SAVE_ROOT "/switch/openbor/save"
-#define LOG_PATH DEFAULT_DATA_ROOT "/debug.log"
-
-#define DEBUG_LOG 0
-#define VERBOSE_IO 0
-#define VERBOSE_JNI 0
-#define VERBOSE_EGL 0
-
+/* Actual storage for the globals declared extern in config.h */
+Config config;
 int screen_width = 0;
 int screen_height = 0;
 
-#define ANDROID_PKG "org.openbor.engine"
+static void config_set_defaults(void) {
+    config.screen_width = -1;
+    config.screen_height = -1;
+    snprintf(config.data_root, sizeof(config.data_root), "%s", DEFAULT_DATA_ROOT);
+    snprintf(config.save_root, sizeof(config.save_root), "%s", DEFAULT_SAVE_ROOT);
+}
 
-typedef struct {
-  int screen_width;
-  int screen_height;
-  char data_root[256];
-  char save_root[256];
-} Config;
+int read_config(const char *file) {
+    FILE *fp = fopen(file, "r");
+    if (!fp) {
+        config_set_defaults();
+        return -1;
+    }
 
-Config config;
+    config_set_defaults();
 
-int read_config(const char *file);
-int write_config(const char *file);
+    char line[512];
+    while (fgets(line, sizeof(line), fp)) {
+        char *p = strchr(line, '\n');
+        if (p) *p = '\0';
+        p = strchr(line, '\r');
+        if (p) *p = '\0';
 
-#endif
+        if (line[0] == '#' || line[0] == ';' || line[0] == '\0')
+            continue;
+
+        char key[128];
+        char value[384];
+        if (sscanf(line, "%127[^=]=%383s", key, value) != 2)
+            continue;
+
+        if (strcmp(key, "screen_width") == 0) {
+            config.screen_width = atoi(value);
+        } else if (strcmp(key, "screen_height") == 0) {
+            config.screen_height = atoi(value);
+        } else if (strcmp(key, "data_root") == 0) {
+            snprintf(config.data_root, sizeof(config.data_root), "%s", value);
+        } else if (strcmp(key, "save_root") == 0) {
+            snprintf(config.save_root, sizeof(config.save_root), "%s", value);
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+int write_config(const char *file) {
+    FILE *fp = fopen(file, "w");
+    if (!fp)
+        return -1;
+
+    fprintf(fp, "screen_width=%d\n", config.screen_width);
+    fprintf(fp, "screen_height=%d\n", config.screen_height);
+    fprintf(fp, "data_root=%s\n", config.data_root);
+    fprintf(fp, "save_root=%s\n", config.save_root);
+
+    fclose(fp);
+    return 0;
+}
