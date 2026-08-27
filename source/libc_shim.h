@@ -125,14 +125,20 @@ uint64_t pak_bytes_total(void);
 // first-N-calls counters.
 extern int g_video_playing;
 
-// Eager, whole-pak extraction: walks every catalog entry (bor.pak +
-// Paks/*.pak) and ensures a real loose file exists on disk for each one,
-// so the game never depends on on-demand materialization racing its own
-// early asset reads. Call once, early in main(), after chdir()'ing into
-// the data root (materialize's paths are CWD-relative) and before the SDL
-// thread/game starts -- safe to show progress via the plain libnx console
-// here since no EGL/GL context exists yet. progress may be NULL.
+// Indexes every *.pak's catalog (bor.pak + everything under Paks/) up
+// front -- fast, header-only, no asset bytes copied -- and reports
+// progress per catalog via `progress` (done/total = catalogs, not files).
+// Replaces the old vpak_extract_all(), which used to eagerly copy every
+// single asset from every installed game to disk before ever reaching the
+// menu: fine for one game, but multiplies badly once several games' *.pak
+// files sit in Paks/ together (minutes-long boot, doubled SD usage, and
+// -- see libc_shim.c's vpak_find_entry()/vpak_asset_is_stale() comments --
+// was the direct cause of games silently picking up each other's
+// same-named files). Actual asset bytes now only ever get pulled from a
+// pak the first time OpenBOR itself asks to open() that exact path
+// (open_fake()'s existing vpak_open_virtual()/vpak_materialize()
+// fallback) -- i.e. only what the game you're actually playing touches.
 typedef void (*VpakExtractProgressFn)(uint32_t done, uint32_t total, const char *name);
-void vpak_extract_all(VpakExtractProgressFn progress);
+void vpak_index_all(VpakExtractProgressFn progress);
 
 #endif
