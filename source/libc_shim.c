@@ -38,6 +38,41 @@
 uintptr_t __stack_chk_guard = 0xA5A5C0DE1234BEEFull;
 
 // ---------------------------------------------------------------------------
+// Per-game extraction isolation: tracks which .pak is currently active and
+// redirects all asset paths into extracted/<PakName>/ so multiple .pak
+// files in Paks/ never overwrite each other.
+// ---------------------------------------------------------------------------
+
+static char g_active_pak[128] = {0};
+
+static void set_active_pak_from_path(const char *path) {
+    if (!path_is_pak(path)) return;
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+    size_t len = strlen(base);
+    if (len > 4) {
+        snprintf(g_active_pak, sizeof(g_active_pak), "%.*s", (int)(len - 4), base);
+    }
+}
+
+static void redirect_to_extracted(const char *path, char *out, size_t outsz) {
+    if (g_active_pak[0] == '\0') {
+        snprintf(out, outsz, "%s", path);
+        return;
+    }
+    if (strncmp(path, "data/", 5) == 0 || strncmp(path, "sounds/", 7) == 0 ||
+        strncmp(path, "sprites/", 8) == 0 || strncmp(path, "models/", 7) == 0 ||
+        strncmp(path, "scripts/", 8) == 0 || strncmp(path, "levels/", 7) == 0 ||
+        strncmp(path, "video/", 6) == 0 || strncmp(path, "music/", 6) == 0 ||
+        strncmp(path, "backgrounds/", 12) == 0 || strncmp(path, "scenes/", 7) == 0 ||
+        strncmp(path, "palettes/", 9) == 0) {
+        snprintf(out, outsz, "extracted/%s/%s", g_active_pak, path);
+    } else {
+        snprintf(out, outsz, "%s", path);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // fortify (_chk): ignore the object-size argument
 // ---------------------------------------------------------------------------
 
@@ -522,6 +557,7 @@ static PakFd *pak_find(int fd) {
 
 static void pak_track(int fd, const char *path) {
   pak_io_init();
+  set_active_pak_from_path(path);
   struct stat st;
   off_t fsize = (fstat(fd, &st) == 0) ? st.st_size : 0;
 
@@ -987,6 +1023,9 @@ static int ends_with_ci(const char *s, const char *suffix) {
 // completes, instead of depending on decode timing at all.
 
 static int vpak_materialize(const char *path) {
+  char dest[512];
+  redirect_to_extracted(path, dest, sizeof(dest));
+
   vpak_catalogs_build_once();
   PakCatEntry key;
   vpak_norm(path, key.name, sizeof(key.name));
@@ -1021,9 +1060,9 @@ static int vpak_materialize(const char *path) {
   // FAT/exFAT for this same-directory case, so a crash mid-copy now only
   // ever leaves an orphaned ".vpaktmp" file, never a corrupt one at the
   // path OpenBOR will actually open.
-  vpak_mkdirs_for(path);
+  vpak_mkdirs_for(dest);
   char tmp[320];
-  snprintf(tmp, sizeof(tmp), "%s.vpaktmp", path);
+  snprintf(tmp, sizeof(tmp), "%s.vpaktmp", dest);
   int dst = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
   if (dst < 0) { debugPrintf("[vpak] materialize(\"%s\"): create failed\n", path); return -1; }
 
@@ -1053,13 +1092,13 @@ static int vpak_materialize(const char *path) {
   }
   close(dst);
   if (!ok) { unlink(tmp); debugPrintf("[vpak] materialize(\"%s\"): copy failed\n", path); return -1; }
-  if (rename(tmp, path) != 0) {
+  if (rename(tmp, dest) != 0) {
     unlink(tmp);
     debugPrintf("[vpak] materialize(\"%s\"): rename failed\n", path);
     return -1;
   }
-  dircache_invalidate_parent_of(path); // a new file just appeared in path's parent
-  debugPrintf("[vpak] materialized \"%s\" from %s @ %u (%u bytes)\n", path, c->path, hit->filestart, hit->filesize);
+  dircache_invalidate_parent_of(dest);
+  debugPrintf("[vpak] materialized \"%s\" from %s @ %u (%u bytes)\n", dest, c->path, hit->filestart, hit->filesize);
   return 0;
 }
 
@@ -1340,15 +1379,23 @@ int open_fake(const char *path, int flags, ...) {
     }
   }
 
-  int fd = open(path, flags, mode);
+  char redirected[512];
+  redirect_to_extracted(path, redirected, sizeof(redirected));
+
+  int fd = open(redirected, flags, mode);
+  if (fd < 0 && strcmp(redirected, path) != 0) {
+    fd = open(path, flags, mode);
+  }
 #if VERBOSE_IO
   debugPrintf("open(\"%s\", 0x%x) -> %d\n", path, flags, fd);
 #endif
   if (fd >= 0) {
     if ((flags & O_ACCMODE) == O_RDONLY && path_is_pak(path)) {
       mutexLock(&s_pak_lock);
+      set_active_pak_from_path(path);
       pak_track(fd, path);
       mutexUnlock(&s_pak_lock);
+      return fd;
     }
     else if ((flags & O_ACCMODE) == O_RDONLY && path_is_static_asset(path))
       // Covers BOTH the "just materialized it this call" case below AND
@@ -1442,7 +1489,7 @@ ssize_t read_fake(int fd, void *dst, size_t count) {
     // Same bounds-check-then-memcpy as PakFd's read above, just against a
     // borrowed sub-range of another slot's buffer instead of one this
     // struct owns outright -- a stubbed webm entry (buf==NULL, size==0)
-    // naturally falls out of this exact same path as an immediate,
+    // naturally falls out of this exact same path as an immediate, 
     // correct EOF (avail computes to 0), no separate branch needed for it.
     size_t avail = (vw->pos < vw->size) ? (size_t)(vw->size - vw->pos) : 0;
     size_t n = count < avail ? count : avail;
