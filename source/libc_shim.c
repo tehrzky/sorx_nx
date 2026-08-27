@@ -687,6 +687,37 @@ static PakCatalog s_cat[MAX_CATALOGS];
 static int s_cat_count;
 static int s_cat_built;
 
+// Which catalog belongs to the game OpenBOR actually picked in its Menu().
+// -1 until the wrapper sees that pak get opened for real (see open_fake()'s
+// path_is_pak() branch, which is the only place OpenBOR ever opens a *.pak
+// by its own real filename -- both for the one-time "Game Selected" open
+// and for its own repeated close/reopen packfile scanning). Every catalog
+// lookup below checks this one FIRST: with several games' *.pak files
+// indexed at once, more than one of them can easily contain a file at the
+// exact same relative path (data/scripts/updatelevel/main.c and
+// data/scripts/openbor.h in particular -- both are near-universal
+// boilerplate every OpenBOR mod ships). Without an active-game preference,
+// whichever catalog happens to be earlier in s_cat[] always wins that
+// lookup regardless of which game is actually running, silently handing a
+// selected game a DIFFERENT game's version of a shared-named file -- this
+// is what produced the "can't find function 'sound'" script compile error
+// and shutdown: the running game's own commons script never got opened,
+// some other installed game's same-named-but-incompatible one did instead.
+static int s_active_cat = -1;
+
+static void vpak_set_active_catalog(const char *pak_path) {
+  for (int i = 0; i < s_cat_count; i++) {
+    if (path_ends_with_component(pak_path, s_cat[i].path) ||
+        strcmp(pak_path, s_cat[i].path) == 0) {
+      if (s_active_cat != i) {
+        s_active_cat = i;
+        debugPrintf("[vpak] active game catalog -> %s (index %d)\n", s_cat[i].path, i);
+      }
+      return;
+    }
+  }
+}
+
 static void vpak_norm(const char *in, char *out, size_t outsz) {
   size_t j = 0;
   if (in[0] == '.' && in[1] == '/') in += 2;
@@ -755,11 +786,38 @@ static void vpak_catalog_load(const char *path) {
   debugPrintf("[vpak] indexed %s: %d entries\n", path, (int)n);
 }
 
-static void vpak_catalogs_build_once(void) {
+// `progress`, if non-NULL, is called once per *.pak indexed (before it's
+// even opened -- pass 1 below counts how many there are first, so `total`
+// is accurate from the very first call instead of growing as we go).
+// Internal callers (vpak_open_virtual/vpak_materialize, both mid-gameplay)
+// always pass NULL: this only ever needs to be user-visible for the one
+// up-front indexing pass main() does at boot, before the actual game/SDL
+// screen exists to show anything more informative than this console text.
+static void vpak_catalogs_build_once_p(VpakExtractProgressFn progress) {
   if (s_cat_built) return;
   s_cat_built = 1;
-  vpak_catalog_load("bor.pak");
+
+  uint32_t total = 1; // bor.pak, whether or not it actually exists
   DIR *d = opendir("Paks");
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+      size_t l = strlen(e->d_name);
+      if (l > 4 && e->d_name[l - 4] == '.' &&
+          (e->d_name[l - 3] == 'p' || e->d_name[l - 3] == 'P') &&
+          (e->d_name[l - 2] == 'a' || e->d_name[l - 2] == 'A') &&
+          (e->d_name[l - 1] == 'k' || e->d_name[l - 1] == 'K'))
+        total++;
+    }
+    closedir(d);
+  }
+
+  uint32_t done = 0;
+  if (progress) progress(done, total, "bor.pak");
+  vpak_catalog_load("bor.pak");
+  done++;
+
+  d = opendir("Paks");
   if (d) {
     struct dirent *e;
     while ((e = readdir(d)) != NULL) {
@@ -770,13 +828,18 @@ static void vpak_catalogs_build_once(void) {
           (e->d_name[l - 1] == 'k' || e->d_name[l - 1] == 'K')) {
         char full[128];
         snprintf(full, sizeof(full), "Paks/%s", e->d_name);
+        if (progress) progress(done, total, e->d_name);
         vpak_catalog_load(full);
+        done++;
       }
     }
     closedir(d);
   }
+  if (progress) progress(done, total, "done");
   debugPrintf("[vpak] %d catalog(s) loaded\n", s_cat_count);
 }
+
+static void vpak_catalogs_build_once(void) { vpak_catalogs_build_once_p(NULL); }
 
 // A fake-fd approach (serving read()/lseek() ourselves against a made-up
 // descriptor) turned out not to be trustworthy here: every test showed the
@@ -937,24 +1000,38 @@ static VirtWinFd *virtwin_find(int fd) {
   return NULL;
 }
 
-// Returns a newly open()'d, real fd on success (already registered and
-// ready for read_fake()/lseek_fake()/close_fake() to serve from `buf`), or
-// -1 for anything short of that -- not in any catalog, its pak isn't
-// resident, the dedicated open() failed, or the table's full. open_fake()
-// treats -1 here as "fall back to vpak_materialize()" unconditionally, so
-// any surprise on real hardware degrades to the already-proven path
-// instead of a hard failure.
+// Shared by vpak_open_virtual() and vpak_materialize(): search the ACTIVE
+// game's own catalog first (see s_active_cat / vpak_set_active_catalog()),
+// only falling back to the others -- in their original load order -- if
+// the active game's own pak doesn't have that path itself. This is what
+// keeps two installed games that happen to share a filename (very common
+// for boilerplate like data/scripts/updatelevel/main.c) from bleeding into
+// each other: whichever one is actually running gets its OWN copy of a
+// shared-named file whenever it has one, and only reaches into another
+// game's pak for something truly missing from its own.
+static PakCatEntry *vpak_find_entry(const PakCatEntry *key, PakCatalog **out_cat) {
+  PakCatEntry *hit;
+  if (s_active_cat >= 0 && s_active_cat < s_cat_count) {
+    hit = bsearch(key, s_cat[s_active_cat].entries, s_cat[s_active_cat].count,
+                   sizeof(PakCatEntry), vpak_cmp);
+    if (hit) { *out_cat = &s_cat[s_active_cat]; return hit; }
+  }
+  for (int ci = 0; ci < s_cat_count; ci++) {
+    if (ci == s_active_cat) continue; // already tried above
+    hit = bsearch(key, s_cat[ci].entries, s_cat[ci].count, sizeof(PakCatEntry), vpak_cmp);
+    if (hit) { *out_cat = &s_cat[ci]; return hit; }
+  }
+  *out_cat = NULL;
+  return NULL;
+}
+
 static int vpak_open_virtual(const char *path) {
   virtwin_init();
   vpak_catalogs_build_once();
   PakCatEntry key;
   vpak_norm(path, key.name, sizeof(key.name));
   PakCatalog *c = NULL;
-  PakCatEntry *hit = NULL;
-  for (int ci = 0; ci < s_cat_count; ci++) {
-    hit = bsearch(&key, s_cat[ci].entries, s_cat[ci].count, sizeof(PakCatEntry), vpak_cmp);
-    if (hit) { c = &s_cat[ci]; break; }
-  }
+  PakCatEntry *hit = vpak_find_entry(&key, &c);
   if (!hit) return -1; // vpak_materialize()'s own bsearch will log "not found" on fallback
 
   off_t resident_size = 0;
@@ -1052,11 +1129,7 @@ static int vpak_materialize(const char *path) {
   PakCatEntry key;
   vpak_norm(path, key.name, sizeof(key.name));
   PakCatalog *c = NULL;
-  PakCatEntry *hit = NULL;
-  for (int ci = 0; ci < s_cat_count; ci++) {
-    hit = bsearch(&key, s_cat[ci].entries, s_cat[ci].count, sizeof(PakCatEntry), vpak_cmp);
-    if (hit) { c = &s_cat[ci]; break; }
-  }
+  PakCatEntry *hit = vpak_find_entry(&key, &c);
   if (!hit) {
     // Unconditional (not gated behind VERBOSE_IO): open_fake() only reaches
     // here after a real open() already failed, so this is never the hot
@@ -1125,45 +1198,55 @@ static int vpak_materialize(const char *path) {
   return 0;
 }
 
-// Explicit, eager, whole-pak extraction: on-demand materialization (every
-// open_fake() call above) never guarantees 100% coverage from a genuinely
-// empty data/ -- vpak_open_virtual() above serves plenty of assets straight
-// out of RAM without ever touching disk, and whatever OpenBOR's own code
-// reads before the game's first real gameplay frame (confirmed: settings
-// files like data/video.txt) only gets ONE chance at open_fake() with no
-// retry if that specific asset wasn't ready yet. Walking every catalog
-// entry once up front and materializing whatever's missing removes that
-// timing dependency entirely -- after this returns, every single asset the
-// pak has is a real loose file on disk, exactly matching what OpenBOR's own
-// unmodified Android build does at first launch. Cheap on every boot after
-// the first: stat() beats a real copy by orders of magnitude, so a fully-
-// extracted data/ turns this into a few thousand quick existence checks,
-// not a repeat of the actual ~377MB copy.
-void vpak_extract_all(VpakExtractProgressFn progress) {
-  vpak_catalogs_build_once();
-  uint32_t total = 0;
-  for (int ci = 0; ci < s_cat_count; ci++) total += (uint32_t)s_cat[ci].count;
-  uint32_t done = 0;
-  for (int ci = 0; ci < s_cat_count; ci++) {
-    PakCatalog *c = &s_cat[ci];
-    for (int i = 0; i < c->count; i++) {
-      PakCatEntry *e = &c->entries[i];
-      struct stat st;
-      int need = 1;
-      if (stat(e->name, &st) == 0) {
-        // webm entries are no longer stubbed (see vpak_materialize()'s own
-        // comment) -- a correct size match now means the same thing for
-        // every file, including a leftover 0-byte stub from an earlier
-        // build/test: that no longer matches e->filesize, so it correctly
-        // gets re-extracted with the real bytes instead of being mistaken
-        // for already-done.
-        if ((uint32_t)st.st_size == e->filesize) need = 0;
-      }
-      if (need) vpak_materialize(e->name);
-      done++;
-      if (progress) progress(done, total, e->name);
-    }
-  }
+// True if `path` already exists on disk (open_fake()'s plain open() just
+// succeeded on it) but is actually a DIFFERENT game's leftover copy from an
+// earlier run/session: the active game's own catalog has a same-named entry
+// whose size doesn't match what's sitting on disk right now. Absent from
+// the active catalog at all (a shared/common file the active game doesn't
+// override, or nothing to compare against yet) or a matching size both mean
+// "leave it alone" -- only a genuine mismatch means "belongs to some other
+// game, needs to be replaced with THIS game's copy before we hand it out".
+// Without this check, switching which game is selected mid-session (or
+// even just re-running after playing a different one) would keep silently
+// serving whatever game's file happened to get written to that shared path
+// first, no matter which catalog is active now -- the same class of bug
+// vpak_find_entry()'s active-catalog-first search fixes for lookups that
+// haven't been materialized yet, applied here to ones that already have.
+static int vpak_asset_is_stale(const char *path, int fd) {
+  if (s_active_cat < 0 || s_active_cat >= s_cat_count) return 0;
+  PakCatEntry key;
+  vpak_norm(path, key.name, sizeof(key.name));
+  PakCatEntry *hit = bsearch(&key, s_cat[s_active_cat].entries,
+                              s_cat[s_active_cat].count, sizeof(PakCatEntry), vpak_cmp);
+  if (!hit) return 0;
+  struct stat st;
+  if (fstat(fd, &st) != 0) return 0;
+  return (uint32_t)st.st_size != hit->filesize;
+}
+
+// Used to eagerly copy every single asset from every installed game to
+// disk before ever reaching the menu -- fine with exactly one game
+// installed, but multiplies badly with several: minutes-long boot walking
+// tens of thousands of entries per extra game, roughly double the SD
+// footprint (compressed pak + every extracted file), and -- the reason
+// this changed, see vpak_find_entry()/vpak_asset_is_stale() above -- no
+// way to know at this point in boot which game you'll actually pick, so
+// it extracted ALL of them, letting later games silently overwrite
+// earlier ones' same-named files on disk.
+//
+// Now: index every catalog's header (fast -- proportional to entry COUNT,
+// not to the pak's actual byte size, so a 2GB pak indexes about as fast as
+// a 200MB one) and stop there. Actual asset bytes only ever get pulled the
+// first time OpenBOR itself open()s that exact path -- open_fake()'s
+// existing vpak_open_virtual() (straight from RAM, no disk write at all
+// when the source pak is already fully resident) and vpak_materialize()
+// (real copy to disk) fallbacks, both now active-catalog-aware. In
+// practice this means: whichever game you actually select only ever pulls
+// in the sprites/sounds/scripts/levels IT actually uses, when it uses
+// them, not the other 7 games' worth of assets you'll never touch this
+// session.
+void vpak_index_all(VpakExtractProgressFn progress) {
+  vpak_catalogs_build_once_p(progress);
 }
 
 // ---------------------------------------------------------------------------
@@ -1429,15 +1512,28 @@ int open_fake(const char *path, int flags, ...) {
       set_active_pak_from_path(path);
       pak_track(fd, path);
       mutexUnlock(&s_pak_lock);
+      // Every real open() of a *.pak by its own path goes through here --
+      // including the one-time "Game Selected" open Menu() does once you
+      // pick something. Cheap to call on every one of those repeated
+      // opens (just a string compare loop against up to 8 entries); see
+      // vpak_set_active_catalog()'s own comment for why this matters.
+      vpak_set_active_catalog(path);
       return fd;
     }
-    else if ((flags & O_ACCMODE) == O_RDONLY && path_is_static_asset(path))
+    else if ((flags & O_ACCMODE) == O_RDONLY && path_is_static_asset(path)) {
       // Covers BOTH the "just materialized it this call" case below AND
       // the far more common one on any boot after the first: the asset
       // already exists as a loose file from an earlier run and this
       // branch -- a plain, immediately-successful open() -- is the only
-      // one that ever runs for it.
+      // one that ever runs for it. Refresh first if it's actually a
+      // different game's leftover (see vpak_asset_is_stale()'s comment).
+      if (vpak_asset_is_stale(path, fd)) {
+        close(fd);
+        fd = (vpak_materialize(path) == 0) ? open(path, flags, mode) : -1;
+        if (fd < 0) return fd;
+      }
       smallcache_track(fd, path);
+    }
     else if (flags & O_CREAT)
       dircache_invalidate_parent_of(path);
     return fd;
@@ -1463,6 +1559,7 @@ int open_fake(const char *path, int flags, ...) {
         mutexLock(&s_pak_lock);
         pak_track(fd, real);
         mutexUnlock(&s_pak_lock);
+        vpak_set_active_catalog(real);
       }
     }
   }
