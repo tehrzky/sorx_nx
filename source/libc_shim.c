@@ -1081,9 +1081,9 @@ static int vpak_materialize(const char *path) {
   // keeps both paths consistent instead of one serving real bytes and the
   // other silently stubbing.
 
-  int src = vpak_source_fd(c);
+  int src = open(c->path, O_RDONLY | O_BINARY);
   if (src < 0) { close(dst); unlink(tmp); return -1; }
-  if (lseek(src, hit->filestart, SEEK_SET) != (off_t)hit->filestart) { close(dst); unlink(tmp); return -1; }
+  if (lseek(src, hit->filestart, SEEK_SET) != (off_t)hit->filestart) { close(src); close(dst); unlink(tmp); return -1; }
 
   static uint8_t buf[64 * 1024];
   uint32_t remaining = hit->filesize;
@@ -1096,6 +1096,7 @@ static int vpak_materialize(const char *path) {
     if (wrote != got) { ok = 0; break; }
     remaining -= (uint32_t)got;
   }
+  close(src);
   close(dst);
   if (!ok) { unlink(tmp); debugPrintf("[vpak] materialize(\"%s\"): copy failed\n", path); return -1; }
   if (rename(tmp, dest) != 0) {
