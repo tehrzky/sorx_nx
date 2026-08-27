@@ -1,6 +1,11 @@
 /* config.h -- OpenBOR Switch wrapper configuration.
  * MIT license; see LICENSE. */
 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include "config.h"
+
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
@@ -19,8 +24,8 @@
 #define VERBOSE_JNI 0
 #define VERBOSE_EGL 0
 
-extern int screen_width;
-extern int screen_height;
+int screen_width = 0;
+int screen_height = 0;
 
 #define ANDROID_PKG "org.openbor.engine"
 
@@ -31,7 +36,7 @@ typedef struct {
   char save_root[256];
 } Config;
 
-extern Config config;
+Config config;
 
 int read_config(const char *file);
 int write_config(const char *file);
