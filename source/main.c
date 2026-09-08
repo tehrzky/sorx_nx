@@ -397,11 +397,18 @@ int main(void) {
     so_free_temp(s_load_list[i].mod);
   debugPrintf("== init_arrays done ==\n");
 
+  debugPrintf(">> calling gpua_enable...\n");
   gpua_enable();
+  debugPrintf(">> gpua_enable done\n");
 
+  debugPrintf(">> calling jni_init...\n");
   jni_init();
+  debugPrintf(">> jni_init done\n");
 
+  debugPrintf(">> calling jni_activity_class...\n");
   void *cls = jni_activity_class();
+  debugPrintf(">> jni_activity_class done, cls=%p\n", cls);
+
   if (e_JNI_OnLoad) { debugPrintf(">> JNI_OnLoad...\n"); e_JNI_OnLoad(fake_vm, NULL); }
   debugPrintf(">> nativeSetupJNI...\n");
   e_nativeSetupJNI(fake_env);
