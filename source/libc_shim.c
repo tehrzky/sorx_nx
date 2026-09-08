@@ -2302,3 +2302,8 @@ size_t __strlcat_chk_fake(char *dst, const char *src, size_t dstsize, size_t dst
   return dl + sl;
 }
 char *__strncpy_chk_fake(char *dst, const char *src, size_t n, size_t dstlen) { (void)dstlen; return strncpy(dst, src, n); }
+
+long lseek64_fake(int fd, long offset, int whence) { return lseek(fd, offset, whence); }
+// No real poll() here and no working sockets yet (see socket_fake etc.) --
+// fail the same way, rather than blocking or crashing.
+int poll_fake(void *fds, unsigned long nfds, int timeout) { (void)fds; (void)nfds; (void)timeout; return -1; }
