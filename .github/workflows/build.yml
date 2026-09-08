@@ -17,6 +17,18 @@ jobs:
         run: |
           make -j$(nproc)
 
+          - name: Resolve crash addresses
+        shell: bash
+        run: |
+          $DEVKITA64/bin/aarch64-none-elf-addr2line -f -C -e openbor_nx.elf \
+            0x411244 0x414de4 0xf744 0x13a0 0xd20
+
+      - name: Upload ELF for future crash lookups
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbor-switch-elf
+          path: openbor_nx.elf
+
       - name: Upload NRO Artifact
         uses: actions/upload-artifact@v4
         with:
