@@ -41,7 +41,7 @@ static struct { so_module *mod; const char *name; } s_load_list[] = {
 };
 static const int s_n_mods = sizeof(s_load_list) / sizeof(*s_load_list);
 
-#define SO_HEAP_RESERVE (64 * 1024 * 1024)
+#define SO_HEAP_RESERVE (192 * 1024 * 1024)
 
 void __libnx_initheap(void) {
   void *addr;
@@ -354,9 +354,12 @@ int main(void) {
   void *base = heap_so_base;
   size_t remaining = heap_so_limit;
 
-    for (int i = 0; i < s_n_mods; i++) {
+      for (int i = 0; i < s_n_mods; i++) {
     if (so_load(s_load_list[i].mod, s_load_list[i].name, base, remaining) < 0)
       fatal_error("Could not load\n%s.", s_load_list[i].name);
+    if (s_load_list[i].mod->load_size > remaining)
+      fatal_error("%s is too big to fit.\nOnly %zu MB free -- increase SO_HEAP_RESERVE.",
+                  s_load_list[i].name, remaining / (1024 * 1024));
     base = (char *)base + s_load_list[i].mod->load_size;
     remaining -= s_load_list[i].mod->load_size;
   }
