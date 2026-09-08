@@ -387,9 +387,12 @@ int main(void) {
   }
   debugPrintf("== so_finalize ok; running init_arrays ==\n");
 
-  tls_setup_guard();
-  for (int i = 0; i < s_n_mods; i++)
+    tls_setup_guard();
+  for (int i = 0; i < s_n_mods; i++) {
+    debugPrintf(">> init_array start: %s\n", s_load_list[i].name);
     so_execute_init_array(s_load_list[i].mod);
+    debugPrintf(">> init_array done:  %s\n", s_load_list[i].name);
+  }
   for (int i = 0; i < s_n_mods; i++)
     so_free_temp(s_load_list[i].mod);
   debugPrintf("== init_arrays done ==\n");
