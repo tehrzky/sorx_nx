@@ -206,5 +206,6 @@ char *__strncpy_chk_fake(char *dst, const char *src, size_t n, size_t dstlen);
 
 long lseek64_fake(int fd, long offset, int whence);
 int poll_fake(void *fds, unsigned long nfds, int timeout);
+int posix_memalign_fake(void **memptr, size_t alignment, size_t size);
 
 #endif
