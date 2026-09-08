@@ -2116,3 +2116,117 @@ int sem_getvalue_fake(void **s, int *val) {
   *val = (s && *s) ? (int)((FakeSem *)*s)->sem.count : 0;
   return 0;
 }
+
+// ---------------------------------------------------------------------------
+// stderr as a plain data symbol: Ikemen's Go/cgo build (newer NDK) references
+// "stderr" directly instead of computing it from __sF like the older-NDK
+// hidapi/SDL2 builds do. Same backing slot either way.
+// ---------------------------------------------------------------------------
+FILE *stderr_shim = (FILE *)&fake_sF[2];
+
+// ---------------------------------------------------------------------------
+// Process-credential calls: Switch homebrew is always a single implicit
+// user, so these are safe no-ops.
+// ---------------------------------------------------------------------------
+int setuid_fake(int uid) { (void)uid; return 0; }
+int setgid_fake(int gid) { (void)gid; return 0; }
+int seteuid_fake(int uid) { (void)uid; return 0; }
+int setegid_fake(int gid) { (void)gid; return 0; }
+int setreuid_fake(int ruid, int euid) { (void)ruid; (void)euid; return 0; }
+int setregid_fake(int rgid, int egid) { (void)rgid; (void)egid; return 0; }
+int setresuid_fake(int ruid, int euid, int suid) { (void)ruid; (void)euid; (void)suid; return 0; }
+int setresgid_fake(int rgid, int egid, int sgid) { (void)rgid; (void)egid; (void)sgid; return 0; }
+int setgroups_fake(size_t size, const void *list) { (void)size; (void)list; return 0; }
+int register_atfork_fake(void *prepare, void *parent, void *child) {
+  (void)prepare; (void)parent; (void)child; return 0; // no fork() on Switch
+}
+
+// sigset_t treated as a single bitmask, matching sigaddset_fake next door.
+int sigfillset_fake(void *set) {
+  if (!set) return -1;
+  *(unsigned long *)set = ~0UL;
+  return 0;
+}
+int sigismember_fake(const void *set, int sig) {
+  if (!set) return 0;
+  return (*(const unsigned long *)set & (1UL << (sig & 63))) != 0;
+}
+
+// pthread_attr_t is opaque here; nothing we implement actually reads it, so
+// just report a generous fixed stack size.
+int pthread_attr_getstacksize_fake(void *attr, size_t *stacksize) {
+  (void)attr;
+  if (stacksize) *stacksize = 2 * 1024 * 1024;
+  return 0;
+}
+int pthread_attr_destroy_fake(void *attr) { (void)attr; return 0; }
+
+// Android log -> our own sorx_debug.log.
+void __android_log_vprint_fake(int prio, const char *tag, const char *fmt, va_list ap) {
+  (void)prio;
+  char buf[512];
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  debugPrintf("[%s] %s\n", tag ? tag : "log", buf);
+}
+
+// No real DNS resolver wired up yet: fail cleanly so Ikemen's netplay code
+// reports "can't resolve host" instead of crashing. (Online play just won't
+// work until this gets real socket support -- that's a later step.)
+#define EAI_FAIL_FAKE (-4)
+int getaddrinfo_fake(const char *node, const char *service, const void *hints, void **res) {
+  (void)node; (void)service; (void)hints; if (res) *res = NULL; return EAI_FAIL_FAKE;
+}
+void freeaddrinfo_fake(void *res) { (void)res; }
+int getnameinfo_fake(const void *sa, unsigned int salen, char *host, size_t hostlen,
+                      char *serv, size_t servlen, int flags) {
+  (void)sa; (void)salen; (void)flags;
+  if (host && hostlen) host[0] = 0;
+  if (serv && servlen) serv[0] = 0;
+  return EAI_FAIL_FAKE;
+}
+const char *gai_strerror_fake(int errcode) { (void)errcode; return "name resolution unavailable"; }
+int res_search_fake(const char *dname, int class_, int type, unsigned char *answer, int anslen) {
+  (void)dname; (void)class_; (void)type; (void)answer; (void)anslen; return -1;
+}
+
+// ---------------------------------------------------------------------------
+// THE IMPORTANT ONE: real anonymous mmap/munmap, backed by memalign and
+// tracked so munmap can free what it actually handed out. No file-backed
+// mapping, no MAP_FIXED -- Go's allocator and FFmpeg only ever ask for plain
+// anonymous memory, so this is enough.
+// ---------------------------------------------------------------------------
+#define MMAP_TRACK_MAX 256
+static struct { void *ptr; size_t len; } s_mmap_track[MMAP_TRACK_MAX];
+
+void *mmap_fake(void *addr, size_t length, int prot, int flags, int fd, long offset) {
+  (void)prot; (void)fd; (void)offset;
+  if (addr != NULL || length == 0) return (void *)-1;   // no MAP_FIXED support
+  if (!(flags & 0x20)) return (void *)-1;                // require MAP_ANONYMOUS
+
+  void *p = memalign(0x1000, (length + 0xFFF) & ~0xFFF);
+  if (!p) return (void *)-1;
+  memset(p, 0, length);
+
+  for (int i = 0; i < MMAP_TRACK_MAX; i++) {
+    if (!s_mmap_track[i].ptr) {
+      s_mmap_track[i].ptr = p;
+      s_mmap_track[i].len = length;
+      return p;
+    }
+  }
+  free(p);
+  return (void *)-1; // tracking table full -- bump MMAP_TRACK_MAX if this hits
+}
+
+int munmap_fake(void *addr, size_t length) {
+  (void)length;
+  for (int i = 0; i < MMAP_TRACK_MAX; i++) {
+    if (s_mmap_track[i].ptr == addr) {
+      free(addr);
+      s_mmap_track[i].ptr = NULL;
+      s_mmap_track[i].len = 0;
+      return 0;
+    }
+  }
+  return -1;
+}
