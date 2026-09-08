@@ -1848,7 +1848,7 @@ static const DynLibFunction dynlib_functions[] = {
   { "pthread_rwlock_unlock", (uintptr_t)&pthread_rwlock_unlock },
   { "pthread_rwlock_rdlock", (uintptr_t)&pthread_rwlock_rdlock },
   { "getpid", (uintptr_t)&getpid },
-  { "posix_memalign", (uintptr_t)&posix_memalign },
+  { "posix_memalign", (uintptr_t)&posix_memalign_fake },
   { "poll", (uintptr_t)&poll_fake },
   { "_Exit", (uintptr_t)&_Exit },
   { "syscall", (uintptr_t)&syscall_fake },
