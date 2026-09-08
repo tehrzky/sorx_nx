@@ -397,9 +397,9 @@ int main(void) {
     so_free_temp(s_load_list[i].mod);
   debugPrintf("== init_arrays done ==\n");
 
-  write(1, "reached: about to call gpua_enable\n", 36);
-  gpua_enable();
-  debugPrintf(">> gpua_enable done\n");
+  // write(1, "reached: about to call gpua_enable\n", 36);
+  // gpua_enable();
+  // debugPrintf(">> gpua_enable done\n");
 
   debugPrintf(">> calling jni_init...\n");
   jni_init();
