@@ -1,4 +1,4 @@
-/* main.c -- OpenBOR Switch wrapper entry point.
+/* main.c -- Ikemen GO Switch wrapper entry point.
  * MIT license; see LICENSE. */
 
 #include <stdlib.h>
@@ -23,6 +23,23 @@ static void *heap_so_base = NULL;
 static size_t heap_so_limit = 0;
 
 so_module hidapi_mod, sdl2_mod, openbor_mod;
+so_module avutil_mod, avcodec_mod, avformat_mod, avfilter_mod, avdevice_mod,
+          swresample_mod, swscale_mod, xmp_mod;
+
+static struct { so_module *mod; const char *name; } s_load_list[] = {
+  { &hidapi_mod,     HIDAPI_SO_NAME },
+  { &sdl2_mod,       SDL2_SO_NAME },
+  { &avutil_mod,     AVUTIL_SO_NAME },
+  { &swresample_mod, SWRESAMPLE_SO_NAME },
+  { &swscale_mod,    SWSCALE_SO_NAME },
+  { &avcodec_mod,    AVCODEC_SO_NAME },
+  { &avformat_mod,   AVFORMAT_SO_NAME },
+  { &avfilter_mod,   AVFILTER_SO_NAME },
+  { &avdevice_mod,   AVDEVICE_SO_NAME },
+  { &xmp_mod,        XMP_SO_NAME },
+  { &openbor_mod,    OPENBOR_SO_NAME },
+};
+static const int s_n_mods = sizeof(s_load_list) / sizeof(*s_load_list);
 
 #define SO_HEAP_RESERVE (64 * 1024 * 1024)
 
@@ -337,20 +354,14 @@ int main(void) {
   void *base = heap_so_base;
   size_t remaining = heap_so_limit;
 
-  if (so_load(&hidapi_mod, HIDAPI_SO_NAME, base, remaining) < 0)
-    fatal_error("Could not load\n%s.", HIDAPI_SO_NAME);
-  base = (char *)base + hidapi_mod.load_size; remaining -= hidapi_mod.load_size;
-  sorx_resolve_imports(&hidapi_mod);
-
-  if (so_load(&sdl2_mod, SDL2_SO_NAME, base, remaining) < 0)
-    fatal_error("Could not load\n%s.", SDL2_SO_NAME);
-  base = (char *)base + sdl2_mod.load_size; remaining -= sdl2_mod.load_size;
-  sorx_resolve_imports(&sdl2_mod);
-
-  if (so_load(&openbor_mod, OPENBOR_SO_NAME, base, remaining) < 0)
-    fatal_error("Could not load\n%s.", OPENBOR_SO_NAME);
-  base = (char *)base + openbor_mod.load_size; remaining -= openbor_mod.load_size;
-  sorx_resolve_imports(&openbor_mod);
+    for (int i = 0; i < s_n_mods; i++) {
+    if (so_load(s_load_list[i].mod, s_load_list[i].name, base, remaining) < 0)
+      fatal_error("Could not load\n%s.", s_load_list[i].name);
+    base = (char *)base + s_load_list[i].mod->load_size;
+    remaining -= s_load_list[i].mod->load_size;
+  }
+  for (int i = 0; i < s_n_mods; i++)
+    sorx_resolve_imports(s_load_list[i].mod);
 
   debugPrintf("== all modules loaded + resolved ==\n");
 
@@ -367,18 +378,17 @@ int main(void) {
     fatal_error("Could not find SDL_main in\n%s.", OPENBOR_SO_NAME);
   egl_shim_set_native_main((void *)sdl_main_addr);
 
-  so_finalize(&hidapi_mod);  so_flush_caches(&hidapi_mod);
-  so_finalize(&sdl2_mod);    so_flush_caches(&sdl2_mod);
-  so_finalize(&openbor_mod); so_flush_caches(&openbor_mod);
+    for (int i = 0; i < s_n_mods; i++) {
+    so_finalize(s_load_list[i].mod);
+    so_flush_caches(s_load_list[i].mod);
+  }
   debugPrintf("== so_finalize ok; running init_arrays ==\n");
 
   tls_setup_guard();
-  so_execute_init_array(&hidapi_mod);
-  so_execute_init_array(&sdl2_mod);
-  so_execute_init_array(&openbor_mod);
-  so_free_temp(&hidapi_mod);
-  so_free_temp(&sdl2_mod);
-  so_free_temp(&openbor_mod);
+  for (int i = 0; i < s_n_mods; i++)
+    so_execute_init_array(s_load_list[i].mod);
+  for (int i = 0; i < s_n_mods; i++)
+    so_free_temp(s_load_list[i].mod);
   debugPrintf("== init_arrays done ==\n");
 
   gpua_enable();
