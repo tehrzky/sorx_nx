@@ -2,9 +2,9 @@ name: Build OpenBOR Switch NRO
 
 on:
   push:
-    branches: [ main, master, IkemenGO, OpenBOR-NX ]
+    branches: [ main, master, OpenBOR-NX ]
   pull_request:
-    branches: [ main, master, IkemenGO, OpenBOR-NX ]
+    branches: [ main, master, OpenBOR-NX ]
   workflow_dispatch:
 
 jobs:
@@ -21,25 +21,31 @@ jobs:
         run: |
           make -j$(nproc)
 
-      # NEW: Resolve crash addresses using the ELF file
-      - name: Resolve crash addresses
-  shell: bash
-  run: |
-    /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e openbor_nx.elf \
-      0x411244 0x414de4 0xf744 0x13a0 0xd20
+      # Optional: list generated files to confirm ELF name
+      - name: List build artifacts
+        shell: bash
+        run: |
+          ls -la *.elf *.nro *.nacp 2>/dev/null || true
 
-      # NEW: Upload the ELF file for future debugging
+      # Resolve crash addresses using the ELF (addr2line is in PATH)
+      - name: Resolve crash addresses
+        shell: bash
+        run: |
+          aarch64-none-elf-addr2line -f -C -e openbor_nx.elf \
+            0x411244 0x414de4 0xf744 0x13a0 0xd20
+
+      # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
         uses: actions/upload-artifact@v4
         with:
           name: openbor-switch-elf
           path: openbor_nx.elf
 
+      # Upload the final NRO and NACP
       - name: Upload NRO Artifact
         uses: actions/upload-artifact@v4
         with:
           name: openbor-switch
           path: |
             *.nro
-            *.nacp            *.nro
             *.nacp
