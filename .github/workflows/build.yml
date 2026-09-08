@@ -21,17 +21,24 @@ jobs:
         run: |
           make -j$(nproc)
 
-      # Optional: list generated files to confirm ELF name
-      - name: List build artifacts
+      # Find the generated ELF file and store its name
+      - name: Locate ELF file
+        id: find_elf
         shell: bash
         run: |
-          ls -la *.elf *.nro *.nacp 2>/dev/null || true
+          ELF=$(ls *.elf 2>/dev/null | head -n1)
+          if [ -z "$ELF" ]; then
+            echo "No .elf file found!"
+            exit 1
+          fi
+          echo "ELF=$ELF" >> $GITHUB_OUTPUT
+          echo "Found ELF: $ELF"
 
-      # Resolve crash addresses using the ELF (addr2line is in PATH)
+      # Resolve crash addresses using the found ELF
       - name: Resolve crash addresses
         shell: bash
         run: |
-          aarch64-none-elf-addr2line -f -C -e openbor_nx.elf \
+          /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e ${{ steps.find_elf.outputs.ELF }} \
             0x411244 0x414de4 0xf744 0x13a0 0xd20
 
       # Upload ELF for future debugging
@@ -39,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openbor-switch-elf
-          path: openbor_nx.elf
+          path: ${{ steps.find_elf.outputs.ELF }}
 
       # Upload the final NRO and NACP
       - name: Upload NRO Artifact
