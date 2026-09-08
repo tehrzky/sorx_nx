@@ -25,8 +25,9 @@
 #include <stddef.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <wchar.h>
+#include <wctype.h>
 #include <switch.h>
-
 #include "config.h"
 #include "libc_shim.h"
 #include "util.h"
@@ -2230,3 +2231,74 @@ int munmap_fake(void *addr, size_t length) {
   }
   return -1;
 }
+
+unsigned long getauxval_fake(unsigned long type) { (void)type; return 0; }
+int memfd_create_fake(const char *name, unsigned int flags) { (void)name; (void)flags; errno = ENOSYS; return -1; }
+int sched_getaffinity_fake(int pid, size_t cpusetsize, void *mask) {
+  (void)pid; if (mask && cpusetsize) memset(mask, 0, cpusetsize); return -1;
+}
+int __sched_cpucount_fake(size_t setsize, const void *set) { (void)setsize; (void)set; return 1; }
+int prctl_fake(int option, ...) { (void)option; return 0; }
+void openlog_fake(const char *ident, int option, int facility) { (void)ident; (void)option; (void)facility; }
+void syslog_fake(int priority, const char *fmt, ...) {
+  (void)priority; char buf[256]; va_list va; va_start(va, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, va); va_end(va); debugPrintf("[syslog] %s\n", buf);
+}
+void closelog_fake(void) {}
+void __assert2_fake(const char *file, int line, const char *func, const char *msg) {
+  debugPrintf("[assert] %s:%d (%s): %s\n", file ? file : "?", line, func ? func : "?", msg ? msg : "?");
+  abort();
+}
+int __open_2_fake(const char *path, int flags) { return open(path, flags); }
+int android_get_device_api_level_fake(void) { return 29; }
+void sincosf_fake(float x, float *s, float *c) {
+  double ds, dc; sincos_fake((double)x, &ds, &dc); *s = (float)ds; *c = (float)dc;
+}
+
+// Networking not wired up yet -- fail cleanly, same reasoning as getaddrinfo.
+int socket_fake(int domain, int type, int protocol) { (void)domain; (void)type; (void)protocol; errno = EAFNOSUPPORT; return -1; }
+int bind_fake(int fd, const void *addr, unsigned int len) { (void)fd; (void)addr; (void)len; return -1; }
+int listen_fake(int fd, int backlog) { (void)fd; (void)backlog; return -1; }
+int accept_fake(int fd, void *addr, unsigned int *len) { (void)fd; (void)addr; (void)len; return -1; }
+int connect_fake(int fd, const void *addr, unsigned int len) { (void)fd; (void)addr; (void)len; return -1; }
+int setsockopt_fake(int fd, int level, int optname, const void *optval, unsigned int optlen) {
+  (void)fd; (void)level; (void)optname; (void)optval; (void)optlen; return -1;
+}
+int getsockopt_fake(int fd, int level, int optname, void *optval, unsigned int *optlen) {
+  (void)fd; (void)level; (void)optname; (void)optval; (void)optlen; return -1;
+}
+
+size_t wcslcpy_fake(wchar_t *dst, const wchar_t *src, size_t dstsize) {
+  size_t srclen = wcslen(src);
+  if (dstsize) { size_t n = srclen < dstsize - 1 ? srclen : dstsize - 1; wmemcpy(dst, src, n); dst[n] = 0; }
+  return srclen;
+}
+size_t wcslcat_fake(wchar_t *dst, const wchar_t *src, size_t dstsize) {
+  size_t dl = wcsnlen(dst, dstsize), sl = wcslen(src);
+  if (dl < dstsize) { size_t n = sl < dstsize - dl - 1 ? sl : dstsize - dl - 1; wmemcpy(dst + dl, src, n); dst[dl + n] = 0; }
+  return dl + sl;
+}
+int wcscasecmp_fake(const wchar_t *a, const wchar_t *b) {
+  while (*a && *b) { wchar_t ca = towlower(*a), cb = towlower(*b); if (ca != cb) return ca - cb; a++; b++; }
+  return towlower(*a) - towlower(*b);
+}
+int wcsncasecmp_fake(const wchar_t *a, const wchar_t *b, size_t n) {
+  while (n && *a && *b) { wchar_t ca = towlower(*a), cb = towlower(*b); if (ca != cb) return ca - cb; a++; b++; n--; }
+  return n == 0 ? 0 : towlower(*a) - towlower(*b);
+}
+
+char *__fgets_chk_fake(char *s, int size, size_t slen, FILE *f) {
+  (void)slen; if (!f || is_fake_file(f)) return NULL; return fgets(s, size, f);
+}
+void *__memset_chk_fake(void *dst, int val, size_t len, size_t dstlen) { (void)dstlen; return memset(dst, val, len); }
+size_t __strlcpy_chk_fake(char *dst, const char *src, size_t dstsize, size_t dstlen) {
+  (void)dstlen; size_t sl = strlen(src);
+  if (dstsize) { size_t n = sl < dstsize - 1 ? sl : dstsize - 1; memcpy(dst, src, n); dst[n] = 0; }
+  return sl;
+}
+size_t __strlcat_chk_fake(char *dst, const char *src, size_t dstsize, size_t dstlen) {
+  (void)dstlen; size_t dl = strnlen(dst, dstsize), sl = strlen(src);
+  if (dl < dstsize) { size_t n = sl < dstsize - dl - 1 ? sl : dstsize - dl - 1; memcpy(dst + dl, src, n); dst[dl + n] = 0; }
+  return dl + sl;
+}
+char *__strncpy_chk_fake(char *dst, const char *src, size_t n, size_t dstlen) { (void)dstlen; return strncpy(dst, src, n); }
