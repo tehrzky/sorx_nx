@@ -2303,6 +2303,14 @@ size_t __strlcat_chk_fake(char *dst, const char *src, size_t dstsize, size_t dst
 }
 char *__strncpy_chk_fake(char *dst, const char *src, size_t n, size_t dstlen) { (void)dstlen; return strncpy(dst, src, n); }
 
+int posix_memalign_fake(void **memptr, size_t alignment, size_t size) {
+  if (!memptr) return -1;
+  void *p = memalign(alignment, size);
+  if (!p) return -1; // ENOMEM, but errno reporting isn't needed here
+  *memptr = p;
+  return 0;
+}
+
 long lseek64_fake(int fd, long offset, int whence) { return lseek(fd, offset, whence); }
 // No real poll() here and no working sockets yet (see socket_fake etc.) --
 // fail the same way, rather than blocking or crashing.
