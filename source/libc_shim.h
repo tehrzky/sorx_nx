@@ -141,4 +141,35 @@ extern int g_video_playing;
 typedef void (*VpakExtractProgressFn)(uint32_t done, uint32_t total, const char *name);
 void vpak_index_all(VpakExtractProgressFn progress);
 
+extern FILE *stderr_shim;
+
+int setuid_fake(int uid);
+int setgid_fake(int gid);
+int seteuid_fake(int uid);
+int setegid_fake(int gid);
+int setreuid_fake(int ruid, int euid);
+int setregid_fake(int rgid, int egid);
+int setresuid_fake(int ruid, int euid, int suid);
+int setresgid_fake(int rgid, int egid, int sgid);
+int setgroups_fake(size_t size, const void *list);
+int register_atfork_fake(void *prepare, void *parent, void *child);
+
+int sigfillset_fake(void *set);
+int sigismember_fake(const void *set, int sig);
+
+int pthread_attr_getstacksize_fake(void *attr, size_t *stacksize);
+int pthread_attr_destroy_fake(void *attr);
+
+void __android_log_vprint_fake(int prio, const char *tag, const char *fmt, va_list ap);
+
+int getaddrinfo_fake(const char *node, const char *service, const void *hints, void **res);
+void freeaddrinfo_fake(void *res);
+int getnameinfo_fake(const void *sa, unsigned int salen, char *host, size_t hostlen,
+                      char *serv, size_t servlen, int flags);
+const char *gai_strerror_fake(int errcode);
+int res_search_fake(const char *dname, int class_, int type, unsigned char *answer, int anslen);
+
+void *mmap_fake(void *addr, size_t length, int prot, int flags, int fd, long offset);
+int munmap_fake(void *addr, size_t length);
+
 #endif
