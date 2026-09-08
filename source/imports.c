@@ -1749,6 +1749,33 @@ static const DynLibFunction dynlib_functions[] = {
   { "glBlendEquationSeparateOES", (uintptr_t)&glBlendEquationSeparateOES_fake },
   { "glBlendFuncSeparateOES", (uintptr_t)&glBlendFuncSeparateOES_fake },
   { "glDrawTexfOES", (uintptr_t)&glDrawTexfOES_fake },
+
+  // --- Ikemen (Go/cgo) libc gaps ---
+  { "stderr", (uintptr_t)&stderr_shim },
+  { "__register_atfork", (uintptr_t)&register_atfork_fake },
+  { "setuid", (uintptr_t)&setuid_fake },
+  { "setgid", (uintptr_t)&setgid_fake },
+  { "seteuid", (uintptr_t)&seteuid_fake },
+  { "setegid", (uintptr_t)&setegid_fake },
+  { "setreuid", (uintptr_t)&setreuid_fake },
+  { "setregid", (uintptr_t)&setregid_fake },
+  { "setresuid", (uintptr_t)&setresuid_fake },
+  { "setresgid", (uintptr_t)&setresgid_fake },
+  { "setgroups", (uintptr_t)&setgroups_fake },
+  { "sigfillset", (uintptr_t)&sigfillset_fake },
+  { "sigismember", (uintptr_t)&sigismember_fake },
+  { "pthread_attr_getstacksize", (uintptr_t)&pthread_attr_getstacksize_fake },
+  { "pthread_attr_destroy", (uintptr_t)&pthread_attr_destroy_fake },
+  { "__android_log_vprint", (uintptr_t)&__android_log_vprint_fake },
+  { "getaddrinfo", (uintptr_t)&getaddrinfo_fake },
+  { "freeaddrinfo", (uintptr_t)&freeaddrinfo_fake },
+  { "getnameinfo", (uintptr_t)&getnameinfo_fake },
+  { "gai_strerror", (uintptr_t)&gai_strerror_fake },
+  { "res_search", (uintptr_t)&res_search_fake },
+  { "mmap", (uintptr_t)&mmap_fake },
+  { "munmap", (uintptr_t)&munmap_fake },
+  { "unsetenv", (uintptr_t)&unsetenv },
+
 };
 
 static const size_t dynlib_numfunctions = sizeof(dynlib_functions) / sizeof(*dynlib_functions);
