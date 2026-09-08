@@ -172,4 +172,36 @@ int res_search_fake(const char *dname, int class_, int type, unsigned char *answ
 void *mmap_fake(void *addr, size_t length, int prot, int flags, int fd, long offset);
 int munmap_fake(void *addr, size_t length);
 
+unsigned long getauxval_fake(unsigned long type);
+int memfd_create_fake(const char *name, unsigned int flags);
+int sched_getaffinity_fake(int pid, size_t cpusetsize, void *mask);
+int __sched_cpucount_fake(size_t setsize, const void *set);
+int prctl_fake(int option, ...);
+void openlog_fake(const char *ident, int option, int facility);
+void syslog_fake(int priority, const char *fmt, ...);
+void closelog_fake(void);
+void __assert2_fake(const char *file, int line, const char *func, const char *msg);
+int __open_2_fake(const char *path, int flags);
+int android_get_device_api_level_fake(void);
+void sincosf_fake(float x, float *s, float *c);
+
+int socket_fake(int domain, int type, int protocol);
+int bind_fake(int fd, const void *addr, unsigned int len);
+int listen_fake(int fd, int backlog);
+int accept_fake(int fd, void *addr, unsigned int *len);
+int connect_fake(int fd, const void *addr, unsigned int len);
+int setsockopt_fake(int fd, int level, int optname, const void *optval, unsigned int optlen);
+int getsockopt_fake(int fd, int level, int optname, void *optval, unsigned int *optlen);
+
+size_t wcslcpy_fake(wchar_t *dst, const wchar_t *src, size_t dstsize);
+size_t wcslcat_fake(wchar_t *dst, const wchar_t *src, size_t dstsize);
+int wcscasecmp_fake(const wchar_t *a, const wchar_t *b);
+int wcsncasecmp_fake(const wchar_t *a, const wchar_t *b, size_t n);
+
+char *__fgets_chk_fake(char *s, int size, size_t slen, FILE *f);
+void *__memset_chk_fake(void *dst, int val, size_t len, size_t dstlen);
+size_t __strlcpy_chk_fake(char *dst, const char *src, size_t dstsize, size_t dstlen);
+size_t __strlcat_chk_fake(char *dst, const char *src, size_t dstsize, size_t dstlen);
+char *__strncpy_chk_fake(char *dst, const char *src, size_t n, size_t dstlen);
+
 #endif
