@@ -401,9 +401,9 @@ int main(void) {
   // gpua_enable();
   // debugPrintf(">> gpua_enable done\n");
 
-  debugPrintf(">> calling jni_init...\n");
-  jni_init();
-  debugPrintf(">> jni_init done\n");
+  // debugPrintf(">> calling jni_init...\n");
+  // jni_init();
+ // debugPrintf(">> jni_init done\n");
 
   debugPrintf(">> calling jni_activity_class...\n");
   void *cls = jni_activity_class();
