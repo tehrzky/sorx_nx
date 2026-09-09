@@ -21,45 +21,17 @@ jobs:
         run: |
           make -j$(nproc)
 
+      # New simplified disassembly step
       - name: Disassemble libSDL2.so around the crash site
         shell: bash
         run: |
           OBJDUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
-          if [ ! -x "$OBJDUMP" ]; then
-            echo "Not found at expected path, searching..."
-            OBJDUMP=$(find /opt/devkitpro -name 'aarch64-none-elf-objdump' | head -1)
-          fi
-          echo "Using: $OBJDUMP"
-          
-          # Try multiple possible locations
-          if [ -f "sorx_nx/debug/libSDL2.so" ]; then
-            SO_PATH="sorx_nx/debug/libSDL2.so"
-          elif [ -f "debug/libSDL2.so" ]; then
-            SO_PATH="debug/libSDL2.so"
-          elif [ -f "sorx_nx/source/debug/libSDL2.so" ]; then
-            SO_PATH="sorx_nx/source/debug/libSDL2.so"
-          else
-            echo "ERROR: libSDL2.so not found in any expected location!"
-            echo "Searching for libSDL2.so..."
-            find . -name "libSDL2.so" 2>/dev/null || echo "No libSDL2.so found"
-            echo "Contents of current directory:"
-            ls -la
-            echo "Contents of sorx_nx/ if it exists:"
-            ls -la sorx_nx/ 2>/dev/null || echo "sorx_nx/ doesn't exist"
-            exit 1
-          fi
-          
-          echo "Found libSDL2.so at: $SO_PATH"
-          
-          # Try disassembly
-          "$OBJDUMP" -d "$SO_PATH" > /tmp/sdl2_disasm.txt || {
-            echo "objdump failed with exit code $?"
-            cat /tmp/sdl2_disasm.txt 2>/dev/null || echo "No output generated"
-            exit 1
-          }
-          
-          echo "Disassembly successful, searching for svc instructions..."
-          grep -n -B6 -A2 "svc" /tmp/sdl2_disasm.txt || echo "No svc instructions found"
+          SO_PATH="debug/libSDL2.so"
+          echo "--- Windowed view around 0x54294 ---"
+          "$OBJDUMP" -D --start-address=0x54200 --stop-address=0x54340 "$SO_PATH"
+          echo "--- Full-file svc search (all sections) ---"
+          "$OBJDUMP" -D "$SO_PATH" > /tmp/sdl2_disasm_full.txt
+          grep -n -B6 -A2 "svc" /tmp/sdl2_disasm_full.txt || echo "still none"
 
       # Find the generated ELF file and store its name
       - name: Locate ELF file
