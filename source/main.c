@@ -361,7 +361,7 @@ int main(void) {
     if (s_load_list[i].mod->load_size > remaining)
       fatal_error("%s is too big to fit.\nOnly %zu MB free -- increase SO_HEAP_RESERVE.",
                   s_load_list[i].name, remaining / (1024 * 1024));
-    debugPrintf("[layout] %-16s blob_offset=0x%x  size=0x%x\n",
+    debugPrintf("[layout] %s blob_offset=0x%x size=0x%x\n",
                 s_load_list[i].name,
                 (unsigned)((uintptr_t)base - blob_start),
                 (unsigned)s_load_list[i].mod->load_size);
