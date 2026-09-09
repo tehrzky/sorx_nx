@@ -201,9 +201,10 @@ void *dlsym_fake(void *handle, const char *symbol) {
     if (strcmp(symbol, egl_table[i].name) == 0)
       return (void *)egl_table[i].fn;
   }
-  for (int i = 0; i < dynlib_functions_count; i++) {
-    if (strcmp(symbol, dynlib_functions[i].symbol) == 0)
-      return (void *)dynlib_functions[i].func;
+    {
+    uintptr_t shim_addr = imports_lookup_shim(symbol);
+    if (shim_addr)
+      return (void *)shim_addr;
   }
   void *addr = (void *)eglGetProcAddress(symbol);
   debugPrintf("[dlsym] %s -> %p\n", symbol, addr);
