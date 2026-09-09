@@ -1861,8 +1861,13 @@ static const DynLibFunction dynlib_functions[] = {
 
 static const size_t dynlib_numfunctions = sizeof(dynlib_functions) / sizeof(*dynlib_functions);
 
-int dynlib_functions_count = sizeof(dynlib_functions) / sizeof(*dynlib_functions);
-
+uintptr_t imports_lookup_shim(const char *name) {
+  for (size_t i = 0; i < dynlib_numfunctions; i++) {
+    if (strcmp(name, dynlib_functions[i].symbol) == 0)
+      return dynlib_functions[i].func;
+  }
+  return 0;
+}
 void sorx_resolve_imports(so_module *mod) {
   so_relocate(mod);
   so_resolve(mod, (DynLibFunction *)dynlib_functions, (int)dynlib_numfunctions, 1);
