@@ -1861,6 +1861,8 @@ static const DynLibFunction dynlib_functions[] = {
 
 static const size_t dynlib_numfunctions = sizeof(dynlib_functions) / sizeof(*dynlib_functions);
 
+int dynlib_functions_count = sizeof(dynlib_functions) / sizeof(*dynlib_functions);
+
 void sorx_resolve_imports(so_module *mod) {
   so_relocate(mod);
   so_resolve(mod, (DynLibFunction *)dynlib_functions, (int)dynlib_numfunctions, 1);
