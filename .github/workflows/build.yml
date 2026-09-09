@@ -51,9 +51,6 @@ jobs:
           
           echo "Found libSDL2.so at: $SO_PATH"
           
-          # Check if it's a valid ELF file
-          file "$SO_PATH"
-          
           # Try disassembly
           "$OBJDUMP" -d "$SO_PATH" > /tmp/sdl2_disasm.txt || {
             echo "objdump failed with exit code $?"
