@@ -21,10 +21,16 @@ jobs:
         run: |
           make -j$(nproc)
 
-      - name: Disassemble libSDL2.so around the crash site
+       - name: Disassemble libSDL2.so around the crash site
         shell: bash
         run: |
-          $DEVKITA64/bin/aarch64-none-elf-objdump -d debug/libSDL2.so > /tmp/sdl2_disasm.txt
+          OBJDUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
+          if [ ! -x "$OBJDUMP" ]; then
+            echo "Not found at expected path, searching..."
+            OBJDUMP=$(find /opt/devkitpro -name 'aarch64-none-elf-objdump' | head -1)
+          fi
+          echo "Using: $OBJDUMP"
+          "$OBJDUMP" -d debug/libSDL2.so > /tmp/sdl2_disasm.txt
           grep -n -B6 -A2 "svc" /tmp/sdl2_disasm.txt
 
       # Find the generated ELF file and store its name
