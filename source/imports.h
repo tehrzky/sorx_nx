@@ -50,4 +50,7 @@ void imports_set_real_waitthread(void *fn);
 void imports_set_real_lockmutex(void *fn);
 void imports_set_real_condwait(void *fn);
 
+extern DynLibFunction dynlib_functions[];
+extern int dynlib_functions_count;
+
 #endif
