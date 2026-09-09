@@ -354,12 +354,17 @@ int main(void) {
   void *base = heap_so_base;
   size_t remaining = heap_so_limit;
 
-      for (int i = 0; i < s_n_mods; i++) {
+        uintptr_t blob_start = (uintptr_t)heap_so_base;
+  for (int i = 0; i < s_n_mods; i++) {
     if (so_load(s_load_list[i].mod, s_load_list[i].name, base, remaining) < 0)
       fatal_error("Could not load\n%s.", s_load_list[i].name);
     if (s_load_list[i].mod->load_size > remaining)
       fatal_error("%s is too big to fit.\nOnly %zu MB free -- increase SO_HEAP_RESERVE.",
                   s_load_list[i].name, remaining / (1024 * 1024));
+    debugPrintf("[layout] %-16s blob_offset=0x%x  size=0x%x\n",
+                s_load_list[i].name,
+                (unsigned)((uintptr_t)base - blob_start),
+                (unsigned)s_load_list[i].mod->load_size);
     base = (char *)base + s_load_list[i].mod->load_size;
     remaining -= s_load_list[i].mod->load_size;
   }
@@ -367,7 +372,7 @@ int main(void) {
     sorx_resolve_imports(s_load_list[i].mod);
 
   debugPrintf("== all modules loaded + resolved ==\n");
-
+          
   so_patch(&openbor_mod);
 
   resolve_entry_points();
