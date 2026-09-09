@@ -200,7 +200,9 @@ void *dlsym_fake(void *handle, const char *symbol) {
     if (strcmp(symbol, egl_table[i].name) == 0)
       return (void *)egl_table[i].fn;
   }
-  return (void *)eglGetProcAddress(symbol);
+    void *addr = (void *)eglGetProcAddress(symbol);
+  debugPrintf("[dlsym] %s -> %p\n", symbol, addr);
+  return addr;
 }
 
 int dlclose_fake(void *handle) { (void)handle; return 0; }
