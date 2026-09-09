@@ -21,6 +21,12 @@ jobs:
         run: |
           make -j$(nproc)
 
+- name: Disassemble libSDL2.so around the crash site
+        shell: bash
+        run: |
+          $DEVKITA64/bin/aarch64-none-elf-objdump -d debug/libSDL2.so > /tmp/sdl2_disasm.txt
+          grep -n -B6 -A2 "svc" /tmp/sdl2_disasm.txt
+
       # Find the generated ELF file and store its name
       - name: Locate ELF file
         id: find_elf
