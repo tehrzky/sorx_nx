@@ -21,7 +21,7 @@ jobs:
         run: |
           make -j$(nproc)
 
-       - name: Disassemble libSDL2.so around the crash site
+      - name: Disassemble libSDL2.so around the crash site
         shell: bash
         run: |
           OBJDUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
