@@ -9,6 +9,7 @@
 #include "config.h"
 #include "util.h"
 #include "egl_shim.h"
+#include "imports.h"
 
 extern int screen_width, screen_height;
 
@@ -196,11 +197,15 @@ void *dlsym_fake(void *handle, const char *symbol) {
     return NULL;
   if (strcmp(symbol, "SDL_main") == 0)
     return s_native_main_addr;
-  for (unsigned i = 0; i < sizeof(egl_table) / sizeof(*egl_table); i++) {
+    for (unsigned i = 0; i < sizeof(egl_table) / sizeof(*egl_table); i++) {
     if (strcmp(symbol, egl_table[i].name) == 0)
       return (void *)egl_table[i].fn;
   }
-    void *addr = (void *)eglGetProcAddress(symbol);
+  for (int i = 0; i < dynlib_functions_count; i++) {
+    if (strcmp(symbol, dynlib_functions[i].symbol) == 0)
+      return (void *)dynlib_functions[i].func;
+  }
+  void *addr = (void *)eglGetProcAddress(symbol);
   debugPrintf("[dlsym] %s -> %p\n", symbol, addr);
   return addr;
 }
