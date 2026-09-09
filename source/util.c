@@ -21,6 +21,7 @@
 static int s_nxlinkSock = -1;
 static FILE *s_log = NULL; // persistent log handle (fast; fflush per line)
 static uint64_t s_boot_tick; // armGetSystemTick() as of userAppInit(), our earliest hookable point
+static int s_log_fd = -1; // raw fd for s_log, captured once at open time -- see debugPrintf
 
 static void initNxLink(void) {
   if (R_FAILED(socketInitializeDefault()))
@@ -45,6 +46,7 @@ void userAppInit(void) {
   initNxLink();
   s_log = fopen(LOG_PATH, "w");
   if (!s_log) s_log = fopen(LOG_NAME, "w"); // fall back to the launch CWD
+  if (s_log) s_log_fd = fileno(s_log); // captured now, before Ikemen's cgo init ever runs
   if (s_log) {
     fputs("== sorx log open ==\n", s_log);
     fflush(s_log);
@@ -58,34 +60,108 @@ void userAppExit(void) {
 
 #endif
 
+// ---------------------------------------------------------------------------
+// Dependency-free formatter: after Ikemen's (Go/cgo) init_array runs, cgo's
+// Android TLS scan misfires and corrupts newlib's own per-thread state that
+// vfprintf/vprintf rely on internally -- confirmed on-device: every call
+// into that machinery crashes from that point on, while raw write() and
+// plain function calls keep working fine. Everything below only uses
+// strlen/memcpy/manual digit conversion and write() -- nothing reentrant.
+// ---------------------------------------------------------------------------
+static void out_str(char *buf, size_t bufsz, size_t *pos, const char *s) {
+  size_t n = strlen(s);
+  size_t room = bufsz > *pos + 1 ? bufsz - *pos - 1 : 0;
+  if (n > room) n = room;
+  memcpy(buf + *pos, s, n);
+  *pos += n;
+}
+static void out_uint(char *buf, size_t bufsz, size_t *pos, unsigned long long v, int base, int upper) {
+  char tmp[32], rev[32]; int i = 0;
+  const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+  if (v == 0) tmp[i++] = '0';
+  while (v > 0) { tmp[i++] = digits[v % base]; v /= base; }
+  for (int j = 0; j < i; j++) rev[j] = tmp[i - 1 - j];
+  rev[i] = 0;
+  out_str(buf, bufsz, pos, rev);
+}
+static void out_int(char *buf, size_t bufsz, size_t *pos, long long v) {
+  if (v < 0) { out_str(buf, bufsz, pos, "-"); out_uint(buf, bufsz, pos, (unsigned long long)(-v), 10, 0); }
+  else out_uint(buf, bufsz, pos, (unsigned long long)v, 10, 0);
+}
+static void out_float(char *buf, size_t bufsz, size_t *pos, double v, int width, int prec) {
+  if (prec < 0) prec = 6;
+  if (v < 0) { out_str(buf, bufsz, pos, "-"); v = -v; }
+  double scale = 1.0;
+  for (int i = 0; i < prec; i++) scale *= 10.0;
+  unsigned long long scaled = (unsigned long long)(v * scale + 0.5);
+  unsigned long long ip = scaled;
+  for (int i = 0; i < prec; i++) ip /= 10;
+  char intbuf[32]; size_t ipos = 0;
+  out_uint(intbuf, sizeof(intbuf), &ipos, ip, 10, 0);
+  intbuf[ipos] = 0;
+  int len_so_far = (int)ipos + (prec > 0 ? 1 + prec : 0);
+  for (int i = len_so_far; i < width; i++) out_str(buf, bufsz, pos, " ");
+  out_str(buf, bufsz, pos, intbuf);
+  if (prec > 0) {
+    out_str(buf, bufsz, pos, ".");
+    unsigned long long frac = scaled;
+    char fracbuf[32];
+    for (int i = prec - 1; i >= 0; i--) { fracbuf[i] = '0' + (int)(frac % 10); frac /= 10; }
+    fracbuf[prec] = 0;
+    out_str(buf, bufsz, pos, fracbuf);
+  }
+}
+static int safe_vformat(char *buf, size_t bufsz, const char *fmt, va_list ap) {
+  size_t pos = 0;
+  for (const char *p = fmt; *p && pos + 1 < bufsz; p++) {
+    if (*p != '%') { buf[pos++] = *p; continue; }
+    p++;
+    int width = 0, prec = -1;
+    while (*p >= '0' && *p <= '9') { width = width * 10 + (*p - '0'); p++; }
+    if (*p == '.') { p++; prec = 0; while (*p >= '0' && *p <= '9') { prec = prec * 10 + (*p - '0'); p++; } }
+    int is_ll = 0, is_l = 0;
+    if (*p == 'l') { is_l = 1; p++; if (*p == 'l') { is_ll = 1; p++; } }
+    switch (*p) {
+      case 's': out_str(buf, bufsz, &pos, va_arg(ap, const char *)); break;
+      case 'd': case 'i':
+        if (is_ll) out_int(buf, bufsz, &pos, va_arg(ap, long long));
+        else if (is_l) out_int(buf, bufsz, &pos, va_arg(ap, long));
+        else out_int(buf, bufsz, &pos, va_arg(ap, int));
+        break;
+      case 'u':
+        if (is_ll) out_uint(buf, bufsz, &pos, va_arg(ap, unsigned long long), 10, 0);
+        else if (is_l) out_uint(buf, bufsz, &pos, va_arg(ap, unsigned long), 10, 0);
+        else out_uint(buf, bufsz, &pos, va_arg(ap, unsigned int), 10, 0);
+        break;
+      case 'x': out_uint(buf, bufsz, &pos, va_arg(ap, unsigned int), 16, 0); break;
+      case 'p': out_str(buf, bufsz, &pos, "0x"); out_uint(buf, bufsz, &pos, (unsigned long long)(uintptr_t)va_arg(ap, void *), 16, 0); break;
+      case 'c': buf[pos++] = (char)va_arg(ap, int); break;
+      case 'f': out_float(buf, bufsz, &pos, va_arg(ap, double), width, prec); break;
+      case '%': buf[pos++] = '%'; break;
+      default: buf[pos++] = '%'; if (pos + 1 < bufsz) buf[pos++] = *p; break;
+    }
+  }
+  buf[pos] = 0;
+  return (int)pos;
+}
+
 int debugPrintf(char *text, ...) {
 #if DEBUG_LOG
-  va_list list;
+  char line[512];
+  size_t off = 0;
 
-  // Real-elapsed-seconds-since-boot prefix: this codebase's various targeted
-  // timing diagnostics (audio.c's content/real ratio, egl_shim.c's swap
-  // timing, ...) each had to invent their own clock reference to answer
-  // "how long did that actually take" -- prefixing every line here instead
-  // makes ANY two lines in the log (including OpenBOR's own "Loading ..."
-  // progress messages, which we never had to add a single instrumentation
-  // call for) directly comparable, retroactively, without needing to have
-  // guessed in advance which milestone would matter. Cheap: one extra
-  // armGetSystemTick()+armTicksToNs() per line, dwarfed by the fflush()
-  // already happening right after.
   double elapsed_s = (double)armTicksToNs(armGetSystemTick() - s_boot_tick) / 1e9;
+  out_str(line, sizeof(line), &off, "[");
+  out_float(line, sizeof(line), &off, elapsed_s, 9, 3);
+  out_str(line, sizeof(line), &off, "] ");
 
-  if (s_log) {
-    fprintf(s_log, "[%9.3f] ", elapsed_s);
-    va_start(list, text);
-    vfprintf(s_log, text, list);
-    va_end(list);
-    fflush(s_log); // flush each line so a crash still leaves a complete log
-  }
-
-  printf("[%9.3f] ", elapsed_s);
+  va_list list;
   va_start(list, text);
-  vprintf(text, list);
+  off += (size_t)safe_vformat(line + off, sizeof(line) - off, text, list);
   va_end(list);
+
+  if (s_log_fd >= 0) write(s_log_fd, line, off);
+  write(1, line, off);
 #endif
   return 0;
 }
