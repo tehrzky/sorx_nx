@@ -30,8 +30,39 @@ jobs:
             OBJDUMP=$(find /opt/devkitpro -name 'aarch64-none-elf-objdump' | head -1)
           fi
           echo "Using: $OBJDUMP"
-          "$OBJDUMP" -d debug/libSDL2.so > /tmp/sdl2_disasm.txt
-          grep -n -B6 -A2 "svc" /tmp/sdl2_disasm.txt
+          
+          # Try multiple possible locations
+          if [ -f "sorx_nx/debug/libSDL2.so" ]; then
+            SO_PATH="sorx_nx/debug/libSDL2.so"
+          elif [ -f "debug/libSDL2.so" ]; then
+            SO_PATH="debug/libSDL2.so"
+          elif [ -f "sorx_nx/source/debug/libSDL2.so" ]; then
+            SO_PATH="sorx_nx/source/debug/libSDL2.so"
+          else
+            echo "ERROR: libSDL2.so not found in any expected location!"
+            echo "Searching for libSDL2.so..."
+            find . -name "libSDL2.so" 2>/dev/null || echo "No libSDL2.so found"
+            echo "Contents of current directory:"
+            ls -la
+            echo "Contents of sorx_nx/ if it exists:"
+            ls -la sorx_nx/ 2>/dev/null || echo "sorx_nx/ doesn't exist"
+            exit 1
+          fi
+          
+          echo "Found libSDL2.so at: $SO_PATH"
+          
+          # Check if it's a valid ELF file
+          file "$SO_PATH"
+          
+          # Try disassembly
+          "$OBJDUMP" -d "$SO_PATH" > /tmp/sdl2_disasm.txt || {
+            echo "objdump failed with exit code $?"
+            cat /tmp/sdl2_disasm.txt 2>/dev/null || echo "No output generated"
+            exit 1
+          }
+          
+          echo "Disassembly successful, searching for svc instructions..."
+          grep -n -B6 -A2 "svc" /tmp/sdl2_disasm.txt || echo "No svc instructions found"
 
       # Find the generated ELF file and store its name
       - name: Locate ELF file
