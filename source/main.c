@@ -318,7 +318,19 @@ static void sdl_thread_fn(void *arg) {
 // fault -- including automatically figuring out which of our 11 loaded
 // modules the crash actually happened in, using our own module table,
 // instead of doing hex arithmetic against a crash report by hand.
+static volatile int s_in_handler = 0;
+
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
+  if (s_in_handler) {
+    // Already handling an exception and got another one -- almost
+    // certainly svcReturnFromException itself failing. Crash once,
+    // loudly, instead of recursing forever.
+    debugPrintf(">>> NESTED EXCEPTION -- svcReturnFromException is failing\n");
+    svcSleepThread(300000000ULL);
+    svcReturnFromException(0xF801); // fatal, do not return
+    return;
+  }
+  s_in_handler = 1;
   unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class
 
   if (ec == 0x15) {
