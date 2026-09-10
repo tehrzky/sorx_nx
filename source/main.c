@@ -317,51 +317,58 @@ static void sdl_thread_fn(void *arg) {
 // modules the crash actually happened in, using our own module table,
 // instead of doing hex arithmetic against a crash report by hand.
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
-  unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class, not libnx-specific
+  unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class
 
-  debugPrintf("\n== EXCEPTION CAUGHT == error_desc=%u esr=%x ec=%x\n", ctx->error_desc, ctx->esr, ec);
+  if (ec == 0x15) {
+    // Identify which loaded module owns the faulting PC.
+    // PC is a RUNTIME address -> compare against load_virtbase, not load_base.
+    const char *which = "?";
+    uintptr_t which_off = 0;
+    for (int i = 0; i < s_n_mods; i++) {
+      so_module *m = s_load_list[i].mod;
+      uintptr_t base = (uintptr_t)m->load_virtbase;
+      uintptr_t end  = base + m->load_size;
+      if (ctx->pc.x >= base && ctx->pc.x < end) {
+        which = s_load_list[i].name;
+        which_off = (uintptr_t)ctx->pc.x - base;
+        break;
+      }
+    }
+    debugPrintf(">>> SVC in %s+0x%x at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
+                which, (unsigned)which_off, (void *)ctx->pc.x,
+                (unsigned long long)ctx->cpu_gprs[8].x,
+                (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
+                (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
+                (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
+    ctx->pc.x += 4;
+    ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
+    debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
+    svcReturnFromException(0);
+    return; // not reached
+  }
+
+  // Non-SVC fault: log everything, then let it crash normally.
+  debugPrintf("\n== EXCEPTION CAUGHT == error_desc=%u esr=%x ec=%x\n",
+              ctx->error_desc, ctx->esr, ec);
   debugPrintf("PC=%p LR=%p FP=%p SP=%p FAR=%p\n",
               (void *)ctx->pc.x, (void *)ctx->lr.x, (void *)ctx->fp.x,
               (void *)ctx->sp.x, (void *)ctx->far.x);
 
+  // Same fix here: PC/LR are runtime addresses.
   for (int i = 0; i < s_n_mods; i++) {
     so_module *m = s_load_list[i].mod;
-    uintptr_t base = (uintptr_t)m->load_base;
+    uintptr_t base = (uintptr_t)m->load_virtbase;
     uintptr_t end  = base + m->load_size;
     if (ctx->pc.x >= base && ctx->pc.x < end)
-      debugPrintf(">>> PC is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->pc.x - base));
+      debugPrintf(">>> PC is inside %s at offset 0x%x <<<\n",
+                  s_load_list[i].name, (unsigned)(ctx->pc.x - base));
     if (ctx->lr.x >= base && ctx->lr.x < end)
-      debugPrintf(">>> LR is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->lr.x - base));
+      debugPrintf(">>> LR is inside %s at offset 0x%x <<<\n",
+                  s_load_list[i].name, (unsigned)(ctx->lr.x - base));
   }
 
-  if (ec == 0x15) {
-  const char *which = "?";
-  for (int i = 0; i < s_n_mods; i++) {
-    so_module *m = s_load_list[i].mod;
-    uintptr_t base = (uintptr_t)m->load_base;
-    uintptr_t end  = base + m->load_size;
-    if (ctx->pc.x >= base && ctx->pc.x < end) {
-      which = s_load_list[i].name;
-      break;
-    }
-  }
-  debugPrintf(">>> SVC in %s at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
-              which, (void *)ctx->pc.x,
-              (unsigned long long)ctx->cpu_gprs[8].x,
-              (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
-              (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
-              (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
-  ctx->pc.x += 4;
-  ctx->cpu_gprs[0].x = (u64)-38;
-  debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
-  svcReturnFromException(0);
-  return;
-}
-
-  // Anything else (data abort, undefined instruction, etc.) is a real bug --
-  // let it crash normally so we still get a proper report for it.
   debugPrintf(">>> ec=%x is not an SVC fault -- letting this crash normally <<<\n", ec);
-  svcSleepThread(300000000ULL); // give the log a moment to flush first
+  svcSleepThread(300000000ULL);
   svcReturnFromException(0xF801);
 }
 
