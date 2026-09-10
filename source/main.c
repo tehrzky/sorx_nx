@@ -317,7 +317,7 @@ static void sdl_thread_fn(void *arg) {
 // report, if we define it ourselves. This gives us LIVE access to the
 // fault -- including automatically figuring out which of our 11 loaded
 // modules the crash actually happened in, using our own module table,
-// instead of doing hex arithmetic against a crash report by hand.
+// instead of doing hex  arithmetic against a crash report by hand.
 static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
