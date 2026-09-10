@@ -334,18 +334,29 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       debugPrintf(">>> LR is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->lr.x - base));
   }
 
-   if (ec == 0x15) {
-    debugPrintf(">>> SVC at %p: x8=%u args=%p,%p,%p,%p,%p,%p <<<\n",
-                (void *)ctx->pc.x, (unsigned)ctx->cpu_gprs[8].x,
-                (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
-                (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
-                (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
-    ctx->pc.x += 4;
-    ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS, reverted from the X0=0 experiment
-    debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
-    svcReturnFromException(0);
-    return; // not reached
+  if (ec == 0x15) {
+  const char *which = "?";
+  for (int i = 0; i < s_n_mods; i++) {
+    so_module *m = s_load_list[i].mod;
+    uintptr_t base = (uintptr_t)m->load_base;
+    uintptr_t end  = base + m->load_size;
+    if (ctx->pc.x >= base && ctx->pc.x < end) {
+      which = s_load_list[i].name;
+      break;
+    }
   }
+  debugPrintf(">>> SVC in %s at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
+              which, (void *)ctx->pc.x,
+              (unsigned long long)ctx->cpu_gprs[8].x,
+              (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
+              (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
+              (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
+  ctx->pc.x += 4;
+  ctx->cpu_gprs[0].x = (u64)-38;
+  debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
+  svcReturnFromException(0);
+  return;
+}
 
   // Anything else (data abort, undefined instruction, etc.) is a real bug --
   // let it crash normally so we still get a proper report for it.
