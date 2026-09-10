@@ -51,5 +51,6 @@ void imports_set_real_lockmutex(void *fn);
 void imports_set_real_condwait(void *fn);
 
 uintptr_t imports_lookup_shim(const char *name);
+uintptr_t poison_get_trap(const char *name);
 
 #endif
