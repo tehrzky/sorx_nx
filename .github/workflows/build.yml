@@ -50,11 +50,6 @@ jobs:
           /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e ${{ steps.find_elf.outputs.ELF }} \
             0x411244 0x414de4 0xf744 0x13a0 0xd20
 
-      - name: Resolve the openbor_nx SVC address
-        shell: bash
-        run: |
-          /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e ${{ steps.find_elf.outputs.ELF }} 0x<the corrected offset, in hex, as a plain number not virtual address>
-
       # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
         uses: actions/upload-artifact@v4
