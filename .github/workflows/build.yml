@@ -41,26 +41,6 @@ jobs:
           /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e ${{ steps.find_elf.outputs.ELF }} \
             0x411244 0x414de4 0xf744 0x13a0 0xd20
 
-      # Map crash address to a real file location
-      - name: Map crash address to a real file location
-        shell: bash
-        run: |
-          READELF=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-readelf
-          OBJDUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
-          SO_PATH="debug/libSDL2.so"
-
-          echo "--- Program headers (segments) ---"
-          "$READELF" -l "$SO_PATH"
-
-          echo "--- Section headers ---"
-          "$READELF" -S "$SO_PATH"
-
-          echo "--- Symbol at/near runtime offset 0x54294 (if any symbols remain) ---"
-          "$OBJDUMP" -t "$SO_PATH" | sort -k1 | awk -v target=0x54294 '
-            { addr = strtonum("0x" $1); if (addr <= strtonum(target)) last = $0 }
-            END { print last }
-          '
-
       # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
         uses: actions/upload-artifact@v4
