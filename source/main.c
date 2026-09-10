@@ -317,7 +317,9 @@ static void sdl_thread_fn(void *arg) {
 // modules the crash actually happened in, using our own module table,
 // instead of doing hex arithmetic against a crash report by hand.
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
-  debugPrintf("\n== EXCEPTION CAUGHT == error_desc=%u esr=%x\n", ctx->error_desc, ctx->esr);
+  unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class, not libnx-specific
+
+  debugPrintf("\n== EXCEPTION CAUGHT == error_desc=%u esr=%x ec=%x\n", ctx->error_desc, ctx->esr, ec);
   debugPrintf("PC=%p LR=%p FP=%p SP=%p FAR=%p\n",
               (void *)ctx->pc.x, (void *)ctx->lr.x, (void *)ctx->fp.x,
               (void *)ctx->sp.x, (void *)ctx->far.x);
@@ -332,13 +334,22 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       debugPrintf(">>> LR is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->lr.x - base));
   }
 
-  for (int i = 0; i < 29; i++)
-    debugPrintf("X%d=%p ", i, (void *)ctx->cpu_gprs[i].x);
-  debugPrintf("\n");
+  if (ec == 0x15) {
+    // Executed an SVC instruction Horizon doesn't recognize -- some
+    // untranslated Android/Linux syscall. Skip it and pretend it returned
+    // -ENOSYS, instead of taking the whole console down over it.
+    debugPrintf(">>> Skipping unsupported SVC at %p, resuming <<<\n", (void *)ctx->pc.x);
+    ctx->pc.x += 4;
+    ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
+    svcReturnFromException(0);
+    return; // not reached
+  }
 
-  // Give the log time to reach the SD card / nxlink before the default
-  // fatal-error path takes over from here.
-  svcSleepThread(500000000ULL);
+  // Anything else (data abort, undefined instruction, etc.) is a real bug --
+  // let it crash normally so we still get a proper report for it.
+  debugPrintf(">>> ec=%x is not an SVC fault -- letting this crash normally <<<\n", ec);
+  svcSleepThread(300000000ULL); // give the log a moment to flush first
+  svcReturnFromException(0xF801);
 }
 
 
