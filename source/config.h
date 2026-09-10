@@ -21,17 +21,17 @@
 #define SWSCALE_SO_NAME     "libswscale.so"
 #define XMP_SO_NAME         "libxmp.so"
 #define CONFIG_NAME "config.txt"
-#define LOG_NAME "sorx_debug.log"
+#define LOG_NAME "IkemenGO_debug.log"
 
 // '/'-absolute paths resolved against the default sdmc device. DATA_ROOT holds
 // the app tree the user prepares under release/switch/sorx_nx/ (the three
 // .so's, bor.pak / assets/, paks/). SAVE_ROOT holds saves/config so OpenBOR's
 // "Saves"/"Config" folders and screenshot output persist there.
-#define DEFAULT_DATA_ROOT "/switch/sorx_nx"
-#define DEFAULT_SAVE_ROOT "/switch/sorx_nx/save"
+#define DEFAULT_DATA_ROOT "/switch/IkemenGO"
+#define DEFAULT_SAVE_ROOT "/switch/IkemenGO/save"
 
 // absolute so the log lands in the app dir regardless of the launch CWD
-#define LOG_PATH DEFAULT_DATA_ROOT "/sorx_debug.log"
+#define LOG_PATH DEFAULT_DATA_ROOT "/IkemenGO_debug.log"
 
 // Master debug switch: log file (<data_root>/sorx_debug.log), nxlink stdout,
 // and all debugPrintf/[io]/[audio]/[jni] output. Off for release.
