@@ -311,6 +311,37 @@ static void sdl_thread_fn(void *arg) {
   s_sdl_thread_done = 1;
 }
 
+// libnx calls this automatically instead of generating the default crash
+// report, if we define it ourselves. This gives us LIVE access to the
+// fault -- including automatically figuring out which of our 11 loaded
+// modules the crash actually happened in, using our own module table,
+// instead of doing hex arithmetic against a crash report by hand.
+void __libnx_exception_handler(ThreadExceptionDump *ctx) {
+  debugPrintf("\n== EXCEPTION CAUGHT == error_desc=%u esr=%x\n", ctx->error_desc, ctx->esr);
+  debugPrintf("PC=%p LR=%p FP=%p SP=%p FAR=%p\n",
+              (void *)ctx->pc.x, (void *)ctx->lr.x, (void *)ctx->fp.x,
+              (void *)ctx->sp.x, (void *)ctx->far.x);
+
+  for (int i = 0; i < s_n_mods; i++) {
+    so_module *m = s_load_list[i].mod;
+    uintptr_t base = (uintptr_t)m->load_base;
+    uintptr_t end  = base + m->load_size;
+    if (ctx->pc.x >= base && ctx->pc.x < end)
+      debugPrintf(">>> PC is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->pc.x - base));
+    if (ctx->lr.x >= base && ctx->lr.x < end)
+      debugPrintf(">>> LR is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->lr.x - base));
+  }
+
+  for (int i = 0; i < 29; i++)
+    debugPrintf("X%d=%p ", i, (void *)ctx->cpu_gprs[i].x);
+  debugPrintf("\n");
+
+  // Give the log time to reach the SD card / nxlink before the default
+  // fatal-error path takes over from here.
+  svcSleepThread(500000000ULL);
+}
+
+
 // One call per *.pak (not per asset, see vpak_index_all()'s own comment --
 // indexing no longer touches individual asset bytes at all, so there's no
 // long silent gap left to paper over here): total is small (MAX_CATALOGS
