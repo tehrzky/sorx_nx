@@ -24,6 +24,7 @@
 #include "so_util.h"
 #include "util.h"
 #include "error.h"
+#include "imports.h"
 
 // not in devkitA64's elf.h
 #ifndef DT_RELR
@@ -378,8 +379,10 @@ int so_resolve(so_module *mod, DynLibFunction *funcs, int num_funcs, int taint_m
                 missing++;
                 debugPrintf("%s: unresolved import: %s\n", mod->name, name);
                 // Poison unresolved imports when requested.
-                if (taint_missing_imports)
-                  *ptr = rels[j].r_offset;
+                if (taint_missing_imports) {
+                  uintptr_t trap = poison_get_trap(name);
+                  *ptr = trap ? trap : rels[j].r_offset;
+                }
               }
             }
 
