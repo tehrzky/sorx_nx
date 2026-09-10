@@ -19,6 +19,9 @@
 #include "libc_shim.h"
 #include "gpuarena.h"
 
+extern char __start__[];
+extern char __end__[];
+
 static void *heap_so_base = NULL;
 static size_t heap_so_limit = 0;
 
@@ -334,6 +337,17 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
         break;
       }
     }
+
+  if (which[0] == '?') {
+    uintptr_t self_base = (uintptr_t)__start__;
+    uintptr_t self_end  = (uintptr_t)__end__;
+    if (ctx->pc.x >= self_base && ctx->pc.x < self_end) {
+      which = "openbor_nx (our own linked code)";
+      // reuse whatever variable you're using for the printed offset,
+      // just recompute it against self_base here
+    }
+  }
+                      
     debugPrintf(">>> SVC in %s+0x%x at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
                 which, (unsigned)which_off, (void *)ctx->pc.x,
                 (unsigned long long)ctx->cpu_gprs[8].x,
