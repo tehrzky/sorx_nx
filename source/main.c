@@ -338,15 +338,20 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       }
     }
 
-  if (which[0] == '?') {
-    uintptr_t self_base = (uintptr_t)__start__;
-    uintptr_t self_end  = (uintptr_t)__end__;
-    debugPrintf(">>> self range: __start__=%p __end__=%p (size=0x%llx)\n",
-                (void *)self_base, (void *)self_end,
-                (unsigned long long)(self_end - self_base));
-    if (ctx->pc.x >= self_base && ctx->pc.x < self_end) {
-      which = "openbor_nx (our own linked code)";
-      which_off = (uintptr_t)ctx->pc.x - self_base;
+    if (which[0] == '?') {
+    // __start__ is not relocated at runtime (it reads 0x0), so it's useless
+    // as a lower bound. Use the handler's own address as the anchor instead:
+    // both the fault and this function live in the NRO, so the delta between
+    // them is stable across runs even though the base is randomized.
+    uintptr_t anchor  = (uintptr_t)&__libnx_exception_handler;
+    uintptr_t self_end = (uintptr_t)__end__;
+    debugPrintf(">>> anchors: handler=%p __end__=%p pc=%p\n",
+                (void *)anchor, (void *)self_end, (void *)ctx->pc.x);
+    // NRO text+data is well under 8 MB in practice; check the PC falls
+    // below __end__ and within a sane window of the handler.
+    if (ctx->pc.x < self_end && ctx->pc.x + (8u * 1024 * 1024) >= anchor) {
+      which = "openbor_nx";
+      which_off = (uintptr_t)ctx->pc.x - anchor; // signed-ish; printed as %x
     }
   }
                       
