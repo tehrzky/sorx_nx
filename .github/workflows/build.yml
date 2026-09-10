@@ -22,16 +22,24 @@ jobs:
           make -j$(nproc)
 
       # New simplified disassembly step
-      - name: Disassemble libSDL2.so around the crash site
+       - name: Map crash address to a real file location
         shell: bash
         run: |
+          READELF=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-readelf
           OBJDUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
           SO_PATH="debug/libSDL2.so"
-          echo "--- Windowed view around 0x54294 ---"
-          "$OBJDUMP" -D --start-address=0x54200 --stop-address=0x54340 "$SO_PATH"
-          echo "--- Full-file svc search (all sections) ---"
-          "$OBJDUMP" -D "$SO_PATH" > /tmp/sdl2_disasm_full.txt
-          grep -n -B6 -A2 "svc" /tmp/sdl2_disasm_full.txt || echo "still none"
+
+          echo "--- Program headers (segments) ---"
+          "$READELF" -l "$SO_PATH"
+
+          echo "--- Section headers ---"
+          "$READELF" -S "$SO_PATH"
+
+          echo "--- Symbol at/near runtime offset 0x54294 (if any symbols remain) ---"
+          "$OBJDUMP" -t "$SO_PATH" | sort -k1 | awk -v target=0x54294 '
+            { addr = strtonum("0x" $1); if (addr <= strtonum(target)) last = $0 }
+            END { print last }
+          '
 
       # Find the generated ELF file and store its name
       - name: Locate ELF file
