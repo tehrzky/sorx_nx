@@ -341,10 +341,12 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   if (which[0] == '?') {
     uintptr_t self_base = (uintptr_t)__start__;
     uintptr_t self_end  = (uintptr_t)__end__;
+    debugPrintf(">>> self range: __start__=%p __end__=%p (size=0x%llx)\n",
+                (void *)self_base, (void *)self_end,
+                (unsigned long long)(self_end - self_base));
     if (ctx->pc.x >= self_base && ctx->pc.x < self_end) {
       which = "openbor_nx (our own linked code)";
-      // reuse whatever variable you're using for the printed offset,
-      // just recompute it against self_base here
+      which_off = (uintptr_t)ctx->pc.x - self_base;
     }
   }
                       
