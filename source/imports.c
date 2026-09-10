@@ -40,6 +40,7 @@
 #include "libc_shim.h"
 #include "egl_shim.h"
 #include "jni_fake.h"
+#include "error.h"
 
 
 // ---------------------------------------------------------------------------
