@@ -334,13 +334,15 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       debugPrintf(">>> LR is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->lr.x - base));
   }
 
-  if (ec == 0x15) {
-    // Executed an SVC instruction Horizon doesn't recognize -- some
-    // untranslated Android/Linux syscall. Skip it and pretend it returned
-    // -ENOSYS, instead of taking the whole console down over it.
-    debugPrintf(">>> Skipping unsupported SVC at %p, resuming <<<\n", (void *)ctx->pc.x);
+ if (ec == 0x15) {
+    debugPrintf(">>> SVC at %p: num=%u args=%p,%p,%p,%p,%p,%p <<<\n",
+                (void *)ctx->pc.x, (unsigned)ctx->cpu_gprs[8].x,
+                (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
+                (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
+                (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
     ctx->pc.x += 4;
     ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
+    debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     svcReturnFromException(0);
     return; // not reached
   }
