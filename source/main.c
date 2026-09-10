@@ -341,7 +341,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                 (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
                 (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
     ctx->pc.x += 4;
-    ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
+    ctx->cpu_gprs[0].x = 0; // pretend success instead of failure -- see if that breaks the retry loop
     debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     svcReturnFromException(0);
     return; // not reached
