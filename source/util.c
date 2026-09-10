@@ -44,6 +44,7 @@ static void deinitNxLink(void) {
 // instead of reopening it per line.
 void userAppInit(void) {
   s_boot_tick = armGetSystemTick();
+  mutexInit(&s_log_mutex);
   initNxLink();
   s_log = fopen(LOG_PATH, "w");
   if (!s_log) s_log = fopen(LOG_NAME, "w"); // fall back to the launch CWD
