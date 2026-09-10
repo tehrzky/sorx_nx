@@ -22,6 +22,7 @@ static int s_nxlinkSock = -1;
 static FILE *s_log = NULL; // persistent log handle (fast; fflush per line)
 static uint64_t s_boot_tick; // armGetSystemTick() as of userAppInit(), our earliest hookable point
 static int s_log_fd = -1; // raw fd for s_log, captured once at open time -- see debugPrintf
+static Mutex s_log_mutex;
 
 static void initNxLink(void) {
   if (R_FAILED(socketInitializeDefault()))
@@ -147,6 +148,7 @@ static int safe_vformat(char *buf, size_t bufsz, const char *fmt, va_list ap) {
 
 int debugPrintf(char *text, ...) {
 #if DEBUG_LOG
+  mutexLock(&s_log_mutex);
   char line[512];
   size_t off = 0;
 
@@ -162,6 +164,7 @@ int debugPrintf(char *text, ...) {
 
   if (s_log_fd >= 0) write(s_log_fd, line, off);
   write(1, line, off);
+  mutexUnlock(&s_log_mutex);
 #endif
   return 0;
 }
