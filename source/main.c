@@ -334,14 +334,14 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       debugPrintf(">>> LR is inside %s at offset %x <<<\n", s_load_list[i].name, (unsigned)(ctx->lr.x - base));
   }
 
- if (ec == 0x15) {
-    debugPrintf(">>> SVC at %p: num=%u args=%p,%p,%p,%p,%p,%p <<<\n",
+   if (ec == 0x15) {
+    debugPrintf(">>> SVC at %p: x8=%u args=%p,%p,%p,%p,%p,%p <<<\n",
                 (void *)ctx->pc.x, (unsigned)ctx->cpu_gprs[8].x,
                 (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
                 (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
                 (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
     ctx->pc.x += 4;
-    ctx->cpu_gprs[0].x = 0; // pretend success instead of failure -- see if that breaks the retry loop
+    ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS, reverted from the X0=0 experiment
     debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     svcReturnFromException(0);
     return; // not reached
