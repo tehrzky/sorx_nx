@@ -19,7 +19,6 @@
 #include "libc_shim.h"
 #include "gpuarena.h"
 
-extern char __start__[];
 extern char __end__[];
 
 static void *heap_so_base = NULL;
