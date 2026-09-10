@@ -50,6 +50,46 @@ jobs:
           /opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e ${{ steps.find_elf.outputs.ELF }} \
             0x411244 0x414de4 0xf744 0x13a0 0xd20
 
+      # Look up which function contains the SVC at handler+0x3e7a3c
+      - name: Locate SVC function in ELF
+        shell: bash
+        run: |
+          NM=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-nm
+          A2L=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line
+          ELF="${{ steps.find_elf.outputs.ELF }}"
+
+          echo "===== handler address ====="
+          HANDLER_LINE=$($NM "$ELF" | grep __libnx_exception_handler || true)
+          echo "$HANDLER_LINE"
+
+          H=$(echo "$HANDLER_LINE" | awk '{print $1}')
+          if [ -z "$H" ]; then
+            echo "Could not find __libnx_exception_handler in symbol table"
+            exit 0
+          fi
+
+          TARGET=$(printf "0x%x" $((0x$H + 0x3e7a3c)))
+          echo "===== target address (handler + 0x3e7a3c) ====="
+          echo "$TARGET"
+
+          echo "===== addr2line (function + source line) ====="
+          $A2L -f -C -e "$ELF" "$TARGET"
+
+          echo "===== 40 instructions around target ====="
+          DUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
+          $DUMP -d "$ELF" > /tmp/dis.txt
+          ADDR_HEX=$(printf "%x" $((0x$H + 0x3e7a3c)))
+          LINE=$(grep -n "$ADDR_HEX" /tmp/dis.txt | head -n1 | cut -d: -f1)
+          if [ -n "$LINE" ]; then
+            START=$((LINE - 40))
+            [ $START -lt 1 ] && START=1
+            END=$((LINE + 10))
+            sed -n "${START},${END}p" /tmp/dis.txt
+          else
+            echo "target address not found in disassembly"
+          fi
+
+
       # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
         uses: actions/upload-artifact@v4
