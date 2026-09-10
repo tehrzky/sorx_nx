@@ -41,6 +41,77 @@
 #include "egl_shim.h"
 #include "jni_fake.h"
 
+
+// ---------------------------------------------------------------------------
+// Named traps for unresolved imports. Instead of poisoning a GOT slot with
+// junk (so_util.c's old fallback), point it at one of these -- if it's ever
+// actually called, we get the real symbol name in the crash log instead of
+// a raw, unmappable address to guess at.
+// ---------------------------------------------------------------------------
+#define POISON_MAX 64
+static const char *g_poison_names[POISON_MAX];
+static int g_poison_count = 0;
+
+static void poison_hit(int idx) {
+  fatal_error("Called unresolved import:\n%s",
+              (idx >= 0 && idx < g_poison_count) ? g_poison_names[idx] : "?");
+}
+
+static void poison_trap_0(void){poison_hit(0);}  static void poison_trap_1(void){poison_hit(1);}
+static void poison_trap_2(void){poison_hit(2);}  static void poison_trap_3(void){poison_hit(3);}
+static void poison_trap_4(void){poison_hit(4);}  static void poison_trap_5(void){poison_hit(5);}
+static void poison_trap_6(void){poison_hit(6);}  static void poison_trap_7(void){poison_hit(7);}
+static void poison_trap_8(void){poison_hit(8);}  static void poison_trap_9(void){poison_hit(9);}
+static void poison_trap_10(void){poison_hit(10);} static void poison_trap_11(void){poison_hit(11);}
+static void poison_trap_12(void){poison_hit(12);} static void poison_trap_13(void){poison_hit(13);}
+static void poison_trap_14(void){poison_hit(14);} static void poison_trap_15(void){poison_hit(15);}
+static void poison_trap_16(void){poison_hit(16);} static void poison_trap_17(void){poison_hit(17);}
+static void poison_trap_18(void){poison_hit(18);} static void poison_trap_19(void){poison_hit(19);}
+static void poison_trap_20(void){poison_hit(20);} static void poison_trap_21(void){poison_hit(21);}
+static void poison_trap_22(void){poison_hit(22);} static void poison_trap_23(void){poison_hit(23);}
+static void poison_trap_24(void){poison_hit(24);} static void poison_trap_25(void){poison_hit(25);}
+static void poison_trap_26(void){poison_hit(26);} static void poison_trap_27(void){poison_hit(27);}
+static void poison_trap_28(void){poison_hit(28);} static void poison_trap_29(void){poison_hit(29);}
+static void poison_trap_30(void){poison_hit(30);} static void poison_trap_31(void){poison_hit(31);}
+static void poison_trap_32(void){poison_hit(32);} static void poison_trap_33(void){poison_hit(33);}
+static void poison_trap_34(void){poison_hit(34);} static void poison_trap_35(void){poison_hit(35);}
+static void poison_trap_36(void){poison_hit(36);} static void poison_trap_37(void){poison_hit(37);}
+static void poison_trap_38(void){poison_hit(38);} static void poison_trap_39(void){poison_hit(39);}
+static void poison_trap_40(void){poison_hit(40);} static void poison_trap_41(void){poison_hit(41);}
+static void poison_trap_42(void){poison_hit(42);} static void poison_trap_43(void){poison_hit(43);}
+static void poison_trap_44(void){poison_hit(44);} static void poison_trap_45(void){poison_hit(45);}
+static void poison_trap_46(void){poison_hit(46);} static void poison_trap_47(void){poison_hit(47);}
+static void poison_trap_48(void){poison_hit(48);} static void poison_trap_49(void){poison_hit(49);}
+static void poison_trap_50(void){poison_hit(50);} static void poison_trap_51(void){poison_hit(51);}
+static void poison_trap_52(void){poison_hit(52);} static void poison_trap_53(void){poison_hit(53);}
+static void poison_trap_54(void){poison_hit(54);} static void poison_trap_55(void){poison_hit(55);}
+static void poison_trap_56(void){poison_hit(56);} static void poison_trap_57(void){poison_hit(57);}
+static void poison_trap_58(void){poison_hit(58);} static void poison_trap_59(void){poison_hit(59);}
+static void poison_trap_60(void){poison_hit(60);} static void poison_trap_61(void){poison_hit(61);}
+static void poison_trap_62(void){poison_hit(62);} static void poison_trap_63(void){poison_hit(63);}
+
+static void (*poison_traps[POISON_MAX])(void) = {
+  poison_trap_0,  poison_trap_1,  poison_trap_2,  poison_trap_3,  poison_trap_4,  poison_trap_5,
+  poison_trap_6,  poison_trap_7,  poison_trap_8,  poison_trap_9,  poison_trap_10, poison_trap_11,
+  poison_trap_12, poison_trap_13, poison_trap_14, poison_trap_15, poison_trap_16, poison_trap_17,
+  poison_trap_18, poison_trap_19, poison_trap_20, poison_trap_21, poison_trap_22, poison_trap_23,
+  poison_trap_24, poison_trap_25, poison_trap_26, poison_trap_27, poison_trap_28, poison_trap_29,
+  poison_trap_30, poison_trap_31, poison_trap_32, poison_trap_33, poison_trap_34, poison_trap_35,
+  poison_trap_36, poison_trap_37, poison_trap_38, poison_trap_39, poison_trap_40, poison_trap_41,
+  poison_trap_42, poison_trap_43, poison_trap_44, poison_trap_45, poison_trap_46, poison_trap_47,
+  poison_trap_48, poison_trap_49, poison_trap_50, poison_trap_51, poison_trap_52, poison_trap_53,
+  poison_trap_54, poison_trap_55, poison_trap_56, poison_trap_57, poison_trap_58, poison_trap_59,
+  poison_trap_60, poison_trap_61, poison_trap_62, poison_trap_63,
+};
+
+uintptr_t poison_get_trap(const char *name) {
+  if (g_poison_count >= POISON_MAX) return 0; // pool exhausted -- caller falls back
+  g_poison_names[g_poison_count] = name;
+  return (uintptr_t)poison_traps[g_poison_count++];
+}
+// ---------------------------------------------------------------------------
+
+
 // real libc/gcc symbols whose addresses we forward verbatim
 extern int   __cxa_atexit(void (*)(void *), void *, void *);
 extern void  __stack_chk_fail(void);
