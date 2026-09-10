@@ -21,6 +21,15 @@ jobs:
         run: |
           make -j$(nproc)
 
+      - name: Check SDL2's real library dependencies
+        shell: bash
+        run: |
+          READELF=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-readelf
+          echo "--- libSDL2.so NEEDED libraries ---"
+          "$READELF" -d debug/libSDL2.so | grep NEEDED
+          echo "--- libavcodec.so NEEDED libraries ---"
+          "$READELF" -d debug/libavcodec.so | grep NEEDED 2>/dev/null || echo "not present at debug/libavcodec.so"
+
       # Find the generated ELF file and store its name
       - name: Locate ELF file
         id: find_elf
