@@ -14,6 +14,9 @@ void userAppInit(void);
 void userAppExit(void);
 #endif
 
+extern volatile int g_in_exception_handler;
+
+
 int debugPrintf(char *text, ...);
 void tls_setup_guard(void);
 void cpu_boost(int on);
