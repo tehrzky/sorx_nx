@@ -62,6 +62,8 @@ void userAppExit(void) {
 
 #endif
 
+volatile int g_in_exception_handler = 0;
+
 // ---------------------------------------------------------------------------
 // Dependency-free formatter: after Ikemen's (Go/cgo) init_array runs, cgo's
 // Android TLS scan misfires and corrupts newlib's own per-thread state that
@@ -149,7 +151,9 @@ static int safe_vformat(char *buf, size_t bufsz, const char *fmt, va_list ap) {
 
 int debugPrintf(char *text, ...) {
 #if DEBUG_LOG
-  mutexLock(&s_log_mutex);
+  int locked = !g_in_exception_handler;
+  if (locked) mutexLock(&s_log_mutex);
+
   char line[512];
   size_t off = 0;
 
@@ -165,7 +169,8 @@ int debugPrintf(char *text, ...) {
 
   if (s_log_fd >= 0) write(s_log_fd, line, off);
   write(1, line, off);
-  mutexUnlock(&s_log_mutex);
+
+  if (locked) mutexUnlock(&s_log_mutex);
 #endif
   return 0;
 }
