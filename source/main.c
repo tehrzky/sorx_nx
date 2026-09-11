@@ -322,15 +322,18 @@ static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   if (s_in_handler) {
+    g_in_exception_handler = 1;
     // Already handling an exception and got another one -- almost
     // certainly svcReturnFromException itself failing. Crash once,
     // loudly, instead of recursing forever.
     debugPrintf(">>> NESTED EXCEPTION -- svcReturnFromException is failing\n");
+    g_in_exception_handler = 0; 
     svcSleepThread(300000000ULL);
     svcReturnFromException(0xF801); // fatal, do not return
     return;
   }
   s_in_handler = 1;
+  g_in_exception_handler = 1;
   unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class
 
   if (ec == 0x15) {
@@ -375,6 +378,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     ctx->pc.x += 4;
     ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
     debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
+    g_in_exception_handler = 0;
     svcReturnFromException(0);
     return; // not reached
   }
@@ -401,6 +405,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
 
   debugPrintf(">>> ec=%x is not an SVC fault -- letting this crash normally <<<\n", ec);
   svcSleepThread(300000000ULL);
+  g_in_exception_handler = 0;
   svcReturnFromException(0xF801);
 }
 
