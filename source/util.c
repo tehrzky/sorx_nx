@@ -152,6 +152,10 @@ static int safe_vformat(char *buf, size_t bufsz, const char *fmt, va_list ap) {
 int debugPrintf(char *text, ...) {
 #if DEBUG_LOG
   int locked = (__atomic_load_n(&g_exception_depth, __ATOMIC_SEQ_CST) == 0);
+  static int dbg_mutex_skips = 0;
+  static int dbg_mutex_locks = 0;
+  if (locked) { if (++dbg_mutex_locks == 1) write(1, "[dbg] first mutexLock taken\n", 28); }
+  else        { if (++dbg_mutex_skips == 1) write(1, "[dbg] first mutex skipped\n", 26); }
   if (locked) mutexLock(&s_log_mutex);
 
   char line[512];
