@@ -14,7 +14,8 @@ void userAppInit(void);
 void userAppExit(void);
 #endif
 
-extern volatile int g_in_exception_handler;
+extern volatile int g_exception_depth;
+
 
 
 int debugPrintf(char *text, ...);
