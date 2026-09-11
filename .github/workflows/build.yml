@@ -89,6 +89,36 @@ jobs:
             echo "target address not found in disassembly"
           fi
 
+      # Resolve a fault address inside libSDL2.so
+      - name: Locate fault function in libSDL2.so
+        shell: bash
+        run: |
+          A2L=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line
+          DUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
+
+          SO=debug/libSDL2.so
+          if [ ! -f "$SO" ]; then
+            SO=libSDL2.so
+          fi
+          if [ ! -f "$SO" ]; then
+            echo "libSDL2.so not found -- skipping"
+            exit 0
+          fi
+
+          echo "===== addr2line libSDL2.so+0x1b3144 ====="
+          $A2L -f -C -e "$SO" 0x1b3144
+
+          echo "===== 40 instructions around libSDL2.so+0x1b3144 ====="
+          $DUMP -d "$SO" > /tmp/sdl2.dis
+          LINE=$(grep -n "1b3144" /tmp/sdl2.dis | head -n1 | cut -d: -f1)
+          if [ -n "$LINE" ]; then
+            START=$((LINE - 40))
+            [ $START -lt 1 ] && START=1
+            END=$((LINE + 10))
+            sed -n "${START},${END}p" /tmp/sdl2.dis
+          else
+            echo "0x1b3144 not found in libSDL2.so disassembly"
+          fi
 
       # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
