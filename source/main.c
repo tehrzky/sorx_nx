@@ -321,7 +321,8 @@ static void sdl_thread_fn(void *arg) {
 static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
-  if (s_in_handler) {
+    t_in_handler = 1;
+    if (s_in_handler) {
     const char *nwhich = "?";
     uintptr_t noff = 0;
     for (int i = 0; i < s_n_mods; i++) {
@@ -334,17 +335,15 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                 nwhich, (unsigned)noff, (void *)ctx->lr.x,
                 (unsigned long long)ctx->cpu_gprs[8].x, ctx->esr,
                 (void *)armGetTls(),
-                (int)__atomic_load_n(&g_exception_depth, __ATOMIC_SEQ_CST));
-    __atomic_fetch_add(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
+                (int)t_in_handler);
     debugPrintf(">>> NESTED EXCEPTION -- svcReturnFromException is failing\n");
-    __atomic_fetch_sub(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
     s_in_handler = 0;
     svcSleepThread(300000000ULL);
+    t_in_handler = 0;
     svcReturnFromException(0xF801); // fatal, do not return
     return;
   }
   s_in_handler = 1;
-  __atomic_fetch_add(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
   unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class
 
   if (ec == 0x15) {
@@ -399,20 +398,19 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     if (svc_log_count < 20) {
       debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     }
-    __atomic_fetch_sub(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
+    t_in_handler = 0;
     s_in_handler = 0;
     svcReturnFromException(0);
     return; // not reached
   }
 
-  // Non-SVC fault: log everything, then let it crash normally.
+    // Non-SVC fault: log everything, then stop cleanly.
   debugPrintf("\n== EXCEPTION CAUGHT == error_desc=%u esr=%x ec=%x\n",
               ctx->error_desc, ctx->esr, ec);
   debugPrintf("PC=%p LR=%p FP=%p SP=%p FAR=%p\n",
               (void *)ctx->pc.x, (void *)ctx->lr.x, (void *)ctx->fp.x,
               (void *)ctx->sp.x, (void *)ctx->far.x);
 
-  // Same fix here: PC/LR are runtime addresses.
   for (int i = 0; i < s_n_mods; i++) {
     so_module *m = s_load_list[i].mod;
     uintptr_t base = (uintptr_t)m->load_virtbase;
@@ -425,11 +423,8 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                   s_load_list[i].name, (unsigned)(ctx->lr.x - base));
   }
 
-  debugPrintf(">>> ec=%x is not an SVC fault -- letting this crash normally <<<\n", ec);
-  svcSleepThread(300000000ULL);
-  __atomic_fetch_sub(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
-  s_in_handler = 0;
-  svcReturnFromException(0xF801);
+  t_in_handler = 0;
+  fatal_error("Unhandled exception\nec=%x pc=%p far=%p", ec, (void *)ctx->pc.x, (void *)ctx->far.x);
 }
 
 
