@@ -530,6 +530,7 @@ int main(void) {
 
   debugPrintf(">> calling jni_init...\n");
   jni_init();
+  debugPrintf(">> fake_vm=%p fake_env=%p\n", fake_vm, fake_env);
   debugPrintf(">> jni_init done\n");
 
   debugPrintf(">> calling jni_activity_class...\n");
