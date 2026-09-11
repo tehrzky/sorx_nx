@@ -362,8 +362,12 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     // them is stable across runs even though the base is randomized.
     uintptr_t anchor  = (uintptr_t)&__libnx_exception_handler;
     uintptr_t self_end = (uintptr_t)__end__;
-    debugPrintf(">>> anchors: handler=%p __end__=%p pc=%p\n",
-                (void *)anchor, (void *)self_end, (void *)ctx->pc.x);
+    static int anchor_log_count = 0;
+    if (anchor_log_count < 20) {
+      debugPrintf(">>> anchors: handler=%p __end__=%p pc=%p\n",
+                  (void *)anchor, (void *)self_end, (void *)ctx->pc.x);
+      anchor_log_count++;
+    }
     // NRO text+data is well under 8 MB in practice; check the PC falls
     // below __end__ and within a sane window of the handler.
     if (ctx->pc.x < self_end && ctx->pc.x + (8u * 1024 * 1024) >= anchor) {
@@ -372,15 +376,21 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     }
   }
                       
-    debugPrintf(">>> SVC in %s+0x%x at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
-                which, (unsigned)which_off, (void *)ctx->pc.x,
-                (unsigned long long)ctx->cpu_gprs[8].x,
-                (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
-                (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
-                (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
+    static int svc_log_count = 0;
+    if (svc_log_count < 20) {
+      debugPrintf(">>> SVC in %s+0x%x at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
+                  which, (unsigned)which_off, (void *)ctx->pc.x,
+                  (unsigned long long)ctx->cpu_gprs[8].x,
+                  (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
+                  (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
+                  (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
+      svc_log_count++;
+    }
     ctx->pc.x += 4;
     ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
-    debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
+    if (svc_log_count < 20) {
+      debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
+    }
     __atomic_fetch_sub(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
     s_in_handler = 0;
     svcReturnFromException(0);
