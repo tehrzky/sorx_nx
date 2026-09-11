@@ -322,8 +322,16 @@ static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   if (s_in_handler) {
-    debugPrintf(">>> NESTED pc=%p lr=%p x8=%llu esr=%x tls=%p depth=%d\n",
-                (void *)ctx->pc.x, (void *)ctx->lr.x,
+    const char *nwhich = "?";
+    uintptr_t noff = 0;
+    for (int i = 0; i < s_n_mods; i++) {
+      so_module *m = s_load_list[i].mod;
+      uintptr_t b = (uintptr_t)m->load_virtbase;
+      uintptr_t e = b + m->load_size;
+      if (ctx->pc.x >= b && ctx->pc.x < e) { nwhich = s_load_list[i].name; noff = (uintptr_t)ctx->pc.x - b; break; }
+    }
+    debugPrintf(">>> NESTED pc=%s+0x%x lr=%p x8=%llu esr=%x tls=%p depth=%d\n",
+                nwhich, (unsigned)noff, (void *)ctx->lr.x,
                 (unsigned long long)ctx->cpu_gprs[8].x, ctx->esr,
                 (void *)armGetTls(),
                 (int)__atomic_load_n(&g_exception_depth, __ATOMIC_SEQ_CST));
