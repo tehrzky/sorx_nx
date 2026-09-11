@@ -327,7 +327,8 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     // certainly svcReturnFromException itself failing. Crash once,
     // loudly, instead of recursing forever.
     debugPrintf(">>> NESTED EXCEPTION -- svcReturnFromException is failing\n");
-    g_in_exception_handler = 0; 
+    g_in_exception_handler = 0;
+    s_in_handler = 0;
     svcSleepThread(300000000ULL);
     svcReturnFromException(0xF801); // fatal, do not return
     return;
@@ -379,6 +380,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
     debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     g_in_exception_handler = 0;
+    s_in_handler = 0;
     svcReturnFromException(0);
     return; // not reached
   }
@@ -406,6 +408,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   debugPrintf(">>> ec=%x is not an SVC fault -- letting this crash normally <<<\n", ec);
   svcSleepThread(300000000ULL);
   g_in_exception_handler = 0;
+  s_in_handler = 0;
   svcReturnFromException(0xF801);
 }
 
