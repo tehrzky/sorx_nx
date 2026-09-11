@@ -14,7 +14,7 @@ void userAppInit(void);
 void userAppExit(void);
 #endif
 
-extern volatile int g_exception_depth;
+extern __thread volatile int t_in_handler;
 
 
 
