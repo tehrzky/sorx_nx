@@ -62,7 +62,7 @@ void userAppExit(void) {
 
 #endif
 
-volatile int g_exception_depth = 0;
+__thread volatile int t_in_handler = 0;
 
 // ---------------------------------------------------------------------------
 // Dependency-free formatter: after Ikemen's (Go/cgo) init_array runs, cgo's
@@ -164,7 +164,7 @@ int debugPrintf(char *text, ...) {
   off += (size_t)safe_vformat(line + off, sizeof(line) - off, text, list);
   va_end(list);
 
-  int locked = (__atomic_load_n(&g_exception_depth, __ATOMIC_SEQ_CST) == 0);
+  int locked = !t_in_handler;
   if (locked) locked = mutexTryLock(&s_log_mutex);
 
   static int dbg_mutex_skips = 0;
