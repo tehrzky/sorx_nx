@@ -322,6 +322,11 @@ static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   if (s_in_handler) {
+    debugPrintf(">>> NESTED pc=%p lr=%p x8=%llu esr=%x tls=%p depth=%d\n",
+                (void *)ctx->pc.x, (void *)ctx->lr.x,
+                (unsigned long long)ctx->cpu_gprs[8].x, ctx->esr,
+                (void *)armGetTls(),
+                (int)__atomic_load_n(&g_exception_depth, __ATOMIC_SEQ_CST));
     __atomic_fetch_add(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
     debugPrintf(">>> NESTED EXCEPTION -- svcReturnFromException is failing\n");
     __atomic_fetch_sub(&g_exception_depth, 1, __ATOMIC_SEQ_CST);
