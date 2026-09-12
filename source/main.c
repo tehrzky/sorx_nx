@@ -312,6 +312,21 @@ static void poll_input(void) {
 static Thread s_sdl_thread;
 static volatile int s_sdl_thread_done = 0;
 
+// Sample the SDL thread's live register state once a second while it's
+// stuck inside nativeOnSDLReady. If PC changes between samples, it's alive
+// and spinning in userspace. If PC stays fixed and x0-x18 read as zero,
+// the kernel is telling us it's genuinely parked inside a syscall.
+static void dump_sdl_thread_state(void) {
+  ThreadContext ctx;
+  if (R_SUCCEEDED(svcGetThreadContext3(&ctx, s_sdl_thread.handle))) {
+    debugPrintf("[heartbeat] sdl_thread pc=%p lr=%p sp=%p x0=%p x8=%p\n",
+                (void *)ctx.pc, (void *)ctx.lr, (void *)ctx.sp,
+                (void *)ctx.x0, (void *)ctx.x8);
+  } else {
+    debugPrintf("[heartbeat] svcGetThreadContext3 failed\n");
+  }
+}
+
 static void sdl_thread_fn(void *arg) {
   (void)arg;
   tls_setup_guard();
@@ -653,6 +668,7 @@ int main(void) {
     if (loop_iters % 120 == 0) debugPrintf("[main] loop heartbeat iter=%llu focused=%d\n", (unsigned long long)loop_iters, s_focused);
 #endif
     if (loop_iters % 312 == 0) log_cpu_clock_periodic();
+    if (loop_iters % 60 == 0) dump_sdl_thread_state();
     uint64_t cur_pak = pak_bytes_total();
     if (cur_pak - last_pak > 64 * 1024 || g_video_playing) {
       idle_frames = 0;
