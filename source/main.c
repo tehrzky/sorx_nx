@@ -320,8 +320,8 @@ static void dump_sdl_thread_state(void) {
   ThreadContext ctx;
   if (R_SUCCEEDED(svcGetThreadContext3(&ctx, s_sdl_thread.handle))) {
     debugPrintf("[heartbeat] sdl_thread pc=%p lr=%p sp=%p x0=%p x8=%p\n",
-                (void *)ctx.pc, (void *)ctx.lr, (void *)ctx.sp,
-                (void *)ctx.x0, (void *)ctx.x8);
+                (void *)ctx.pc.x, (void *)ctx.lr.x, (void *)ctx.sp.x,
+                (void *)ctx.cpu_gprs[0].x, (void *)ctx.cpu_gprs[8].x);
   } else {
     debugPrintf("[heartbeat] svcGetThreadContext3 failed\n");
   }
