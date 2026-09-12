@@ -498,9 +498,8 @@ static juint j_unimplemented(void) { return 0; }
 // table assembly (indices per the JNI specification)
 // ---------------------------------------------------------------------------
 
-static void *env_table[256];
-static void **env_table_ptr = env_table;
-void *fake_env = &env_table_ptr;
+void *env_table[256];
+void *fake_env = &env_table[0];
 
 static juint vm_DestroyJavaVM(void *vm) { (void)vm; return JNI_OK; }
 static juint vm_AttachCurrentThread(void *vm, void **env, void *args) {
@@ -510,9 +509,8 @@ static juint vm_DetachCurrentThread(void *vm) { (void)vm; return JNI_OK; }
 static juint vm_GetEnv(void *vm, void **env, int version) {
   (void)vm; (void)version; if (env) *env = fake_env; return JNI_OK;
 }
-static void *vm_table[8];
-static void **vm_table_ptr = vm_table;
-void *fake_vm = &vm_table_ptr;
+void *vm_table[8];
+void *fake_vm = &vm_table[0];
 
 void jni_init(void) {
   mutexInit(&locals_lock);
