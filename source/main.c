@@ -590,6 +590,13 @@ int main(void) {
       *(void **)fake_env ? ((void **)*(void **)fake_env)[4] : (void *)0);
 
   if (e_JNI_OnLoad) { debugPrintf(">> JNI_OnLoad...\n"); e_JNI_OnLoad(fake_vm, NULL); }
+  /* SDL2's built-in Android HID code has its OWN mJavaVM at link vaddr
+     0x225770 (see disasm at 1b3000: adrp x8,225000 / ldr x0,[x8,#1904]).
+     SDL's own JNI_OnLoad never sets it -- only SDL's hidapi's own
+     JNI_OnLoad would, and that one isn't the entry point we call. Plant
+     our fake_vm there so PLATFORM_hid_init's AttachCurrentThread(this) has
+     a valid `this`. */
+  *(void **)((uintptr_t)sdl2_mod.load_virtbase + 0x225770) = fake_vm;
   debugPrintf(">> nativeSetupJNI...\n");
   e_nativeSetupJNI(fake_env);
   if (e_audioSetupJNI) e_audioSetupJNI(fake_env);
