@@ -359,9 +359,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     debugPrintf(">>> NESTED EXCEPTION -- stopping with fatal_error\n");
     t_in_handler = 0;
     s_in_handler = 0;
-    fatal_error("Nested exception\npc=%p lr=%p esr=%x\ninside=%s+0x%x",
-                (void *)ctx->pc.x, (void *)ctx->lr.x, ctx->esr,
-                nwhich, (unsigned)noff);
+    for (;;) { __asm__ __volatile__("b ."); }
   }
   s_in_handler = 1;
   unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class
@@ -402,6 +400,18 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       which_off = (uintptr_t)ctx->pc.x - anchor; // signed-ish; printed as %x
     }
   }
+
+    // If the SVC came from the NRO itself (not a guest module), it's
+    // libnx-internal code (svcBreak, svcReturnFromException, mutexLock
+    // slow path, etc). Skipping those corrupts the exception context and
+    // can leave PC=0. Hang instead -- the guest SVCs we actually want to
+    // skip are never in openbor_nx.
+    if (which[0] != '?' && strcmp(which, "openbor_nx") == 0) {
+      debugPrintf(">>> NRO-internal SVC at +0x%x -- hanging\n", (unsigned)which_off);
+      t_in_handler = 0;
+      s_in_handler = 0;
+      for (;;) { __asm__ __volatile__("b ."); }
+    }
                       
     static int svc_log_count = 0;
     if (svc_log_count < 20) {
@@ -427,7 +437,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x40) {
         t_in_handler = 0;
         s_in_handler = 0;
-        fatal_error("Recursive fault inside svcReturnFromException\npc=%p", (void *)ctx->pc.x);
+        for (;;) { __asm__ __volatile__("b ."); }
       }
     }
 
@@ -457,7 +467,7 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   }
 
   t_in_handler = 0;
-  fatal_error("Unhandled exception\nec=%x pc=%p far=%p", ec, (void *)ctx->pc.x, (void *)ctx->far.x);
+  for (;;) { __asm__ __volatile__("b ."); }
 }
 
 
