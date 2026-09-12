@@ -18,6 +18,7 @@
 #include "egl_shim.h"
 #include "libc_shim.h"
 #include "gpuarena.h"
+#include <switch/kernel/svc.h>
 
 extern char __end__[];
 
