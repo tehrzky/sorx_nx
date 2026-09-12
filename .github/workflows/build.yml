@@ -16,16 +16,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Dump libnx ThreadContext definition
-        shell: bash
-        run: |
-          find /opt/devkitpro -name "thread.h" -o -name "thread_context.h" -o -name "*.h" 2>/dev/null \
-            | xargs grep -l "ThreadContext" 2>/dev/null | head -5 | while read f; do
-            echo "=== $f ==="
-            awk '/typedef struct.*ThreadContext/,/} ThreadContext;/' "$f" | head -40
-            grep -n "cpu_gprs\|pc;\|lr;\|sp;" "$f" | head -20
-          done
-
       - name: Build NRO
         shell: bash
         run: |
