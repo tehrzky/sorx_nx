@@ -149,6 +149,7 @@ static int  (*e_JNI_OnLoad)(void *vm, void *reserved);
 static int  (*e_nativeAddJoystick)(void *env, void *cls, int device_id, void *name, void *desc,
                                     int vendor_id, int product_id, int is_accelerometer,
                                     int button_mask, int naxes, int axis_mask, int nhats);
+static void (*e_nativeOnSDLReady)(void *env, void *cls, void *jpath);
 static void (*e_onNativePadDown)(void *env, void *cls, int device_id, int keycode);
 static void (*e_onNativePadUp)(void *env, void *cls, int device_id, int keycode);
 static void (*e_onNativeJoy)(void *env, void *cls, int device_id, int axis, float value);
@@ -180,6 +181,7 @@ static void resolve_entry_points(void) {
   e_onNativeHat              = (void *)so_try_find_addr_rx(&sdl2_mod, "Java_org_libsdl_app_SDLControllerManager_onNativeHat");
   e_onNativeTouch            = (void *)so_try_find_addr_rx(&sdl2_mod, "Java_org_libsdl_app_SDLActivity_onNativeTouch");
   e_nativeSetScreenResolution = (void *)so_try_find_addr_rx(&sdl2_mod, "Java_org_libsdl_app_SDLActivity_nativeSetScreenResolution");
+  e_nativeOnSDLReady          = (void *)so_try_find_addr_rx(&openbor_mod, "Java_org_libsdl_app_SDLActivity_nativeOnSDLReady");
   imports_set_real_rendercopy((void *)so_try_find_addr_rx(&sdl2_mod, "SDL_RenderCopy"));
   imports_set_real_getdesktopdisplaymode((void *)so_try_find_addr_rx(&sdl2_mod, "SDL_GetDesktopDisplayMode"));
   imports_set_real_createtexture((void *)so_try_find_addr_rx(&sdl2_mod, "SDL_CreateTexture"));
@@ -314,6 +316,18 @@ static void sdl_thread_fn(void *arg) {
   (void)arg;
   tls_setup_guard();
   void *cls = jni_activity_class();
+
+  // Ikemen GO expects SDL to call Java_..._nativeOnSDLReady with the
+  // asset directory before SDL_main runs. On Android the Java layer does
+  // that; on Switch there is no Java layer, so we call it ourselves.
+  if (e_nativeOnSDLReady) {
+    debugPrintf(">> nativeOnSDLReady(%s)\n", config.data_root);
+    e_nativeOnSDLReady(fake_env, cls, jni_new_string(config.data_root));
+    debugPrintf(">> nativeOnSDLReady returned\n");
+  } else {
+    debugPrintf(">> nativeOnSDLReady NOT FOUND in libopenbor.so\n");
+  }
+
   debugPrintf(">> SDL thread: nativeRunMain...\n");
   e_nativeRunMain(fake_env, cls, jni_new_string(OPENBOR_SO_NAME), jni_new_string("SDL_main"), NULL);
   debugPrintf(">> SDL thread: SDL_main returned\n");
