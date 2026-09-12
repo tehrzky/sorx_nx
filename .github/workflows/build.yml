@@ -131,6 +131,17 @@ jobs:
             echo "1b3128 not found in disassembly"
           fi
 
+      - name: Dump libnx ThreadContext definition
+        shell: bash
+        run: |
+          grep -rn "typedef struct.*ThreadContext\|} ThreadContext" /opt/devkitpro/pacman-packages/libnx/src/libnx-4.12.0/ 2>/dev/null || \
+          find /opt/devkitpro -name "*.h" -exec grep -l "ThreadContext" {} \; 2>/dev/null | head -5
+          echo "-----"
+          for f in $(find /opt/devkitpro -name "*.h" -exec grep -l "ThreadContext" {} \; 2>/dev/null | head -5); do
+            echo "=== $f ==="
+            sed -n '/typedef struct.*{/,/} ThreadContext/p' "$f" | head -80
+          done
+
       # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
         uses: actions/upload-artifact@v4
