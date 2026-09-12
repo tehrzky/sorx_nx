@@ -581,14 +581,6 @@ int main(void) {
   void *cls = jni_activity_class();
   debugPrintf(">> jni_activity_class done, cls=%p\n", cls);
 
-  debugPrintf(">> fake_vm=%p funcs=%p [4]=%p  fake_env=%p funcs=%p [4]=%p\n",
-      fake_vm,
-      *(void **)fake_vm,
-      *(void **)fake_vm ? ((void **)*(void **)fake_vm)[4] : (void *)0,
-      fake_env,
-      *(void **)fake_env,
-      *(void **)fake_env ? ((void **)*(void **)fake_env)[4] : (void *)0);
-
   if (e_JNI_OnLoad) { debugPrintf(">> JNI_OnLoad...\n"); e_JNI_OnLoad(fake_vm, NULL); }
   /* SDL2's built-in Android HID code has its OWN mJavaVM at link vaddr
      0x225770 (see disasm at 1b3000: adrp x8,225000 / ldr x0,[x8,#1904]).
