@@ -120,6 +120,17 @@ jobs:
             echo "0x1b3144 not found in libSDL2.so disassembly"
           fi
 
+          echo "===== 80 instructions BEFORE AttachCurrentThread (the caller) ====="
+          LINE=$(grep -n "^  1b3128:" /tmp/sdl2.dis | head -n1 | cut -d: -f1)
+          if [ -n "$LINE" ]; then
+            START=$((LINE - 80))
+            [ $START -lt 1 ] && START=1
+            END=$((LINE - 1))
+            sed -n "${START},${END}p" /tmp/sdl2.dis
+          else
+            echo "1b3128 not found in disassembly"
+          fi
+
       # Upload ELF for future debugging
       - name: Upload ELF for future crash lookups
         uses: actions/upload-artifact@v4
