@@ -21,6 +21,13 @@
 
 extern char __end__[];
 
+// libnx's default exception stack is only 0x400 (1KB) and shared by the
+// whole process. Our handler calls debugPrintf (512-byte local buffer
+// alone) multiple times per fault, which overflows the default stack and
+// corrupts the exception context. Override it with 32KB.
+__attribute__((aligned(16))) u8 __nx_exception_stack[0x8000];
+u64 __nx_exception_stack_size = sizeof(__nx_exception_stack);
+
 static void *heap_so_base = NULL;
 static size_t heap_so_limit = 0;
 
@@ -393,11 +400,24 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                   (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
       svc_log_count++;
     }
-    ctx->pc.x += 4;
+        ctx->pc.x += 4;
     ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
     if (svc_log_count < 20) {
       debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     }
+
+    // Circuit-breaker: if we somehow ended up faulting inside
+    // svcReturnFromException itself, give up cleanly instead of looping.
+    {
+      extern void svcReturnFromException(Result res);
+      uintptr_t svc_ret_addr = (uintptr_t)&svcReturnFromException;
+      if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x40) {
+        t_in_handler = 0;
+        s_in_handler = 0;
+        fatal_error("Recursive fault inside svcReturnFromException\npc=%p", (void *)ctx->pc.x);
+      }
+    }
+
     t_in_handler = 0;
     s_in_handler = 0;
     svcReturnFromException(0);
