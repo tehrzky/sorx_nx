@@ -356,6 +356,12 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                 nwhich, (unsigned)noff, (void *)ctx->lr.x,
                 (unsigned long long)ctx->cpu_gprs[8].x, ctx->esr,
                 (void *)armGetTls());
+    debugPrintf("     x0=%p x1=%p x2=%p x3=%p x4=%p x5=%p x6=%p x7=%p far=%p sp=%p\n",
+                (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
+                (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
+                (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x,
+                (void *)ctx->cpu_gprs[6].x, (void *)ctx->cpu_gprs[7].x,
+                (void *)ctx->far.x, (void *)ctx->sp.x);
     debugPrintf(">>> NESTED EXCEPTION -- stopping with fatal_error\n");
     t_in_handler = 0;
     s_in_handler = 0;
