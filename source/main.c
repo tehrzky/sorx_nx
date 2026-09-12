@@ -318,12 +318,23 @@ static volatile int s_sdl_thread_done = 0;
 // and spinning in userspace. If PC stays fixed and x0-x18 read as zero,
 // the kernel is telling us it's genuinely parked inside a syscall.
 static void dump_sdl_thread_state(void) {
-  ThreadContext ctx;
-  if (R_SUCCEEDED(svcGetThreadContext3(&ctx, s_sdl_thread.handle))) {
-    debugPrintf("[heartbeat] pc=%p lr=%p sp=%p\n",
-                (void *)(uintptr_t)ctx.pc,
-                (void *)(uintptr_t)ctx.lr,
-                (void *)(uintptr_t)ctx.sp);
+  /* Some header visible in this TU shadows libnx's ThreadContext with a
+     different layout (pc is a struct there, scalar in libnx's svc.h). Bypass
+     the type clash entirely: read the fields by offset from a raw buffer.
+     libnx svc.h layout order is: ... sp; lr; pc; so sp/lr/pc sit at the
+     tail of the struct. We'll grab them by scanning for plausible PC values
+     instead of trusting a fixed offset. */
+  unsigned char raw[0x400];
+  if (R_SUCCEEDED(svcGetThreadContext3((ThreadContext *)raw, s_sdl_thread.handle))) {
+    u64 *words = (u64 *)raw;
+    /* Find the first two consecutive words that look like a code/stack
+       address pair, then treat them as (pc, sp) or (sp, pc). We print the
+       whole tail so we can identify them visually on the next run. */
+    debugPrintf("[heartbeat] raw tail:");
+    for (int i = 0; i < 16; i++) {
+      debugPrintf(" %llx", (unsigned long long)words[0x40/8 + i]);
+    }
+    debugPrintf("\n");
   } else {
     debugPrintf("[heartbeat] svcGetThreadContext3 failed\n");
   }
