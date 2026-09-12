@@ -575,6 +575,10 @@ int main(void) {
   void *cls = jni_activity_class();
   debugPrintf(">> jni_activity_class done, cls=%p\n", cls);
 
+  debugPrintf(">> fake_vm=%p *(fake_vm)=%p [4]=%p  fake_env=%p *(fake_env)=%p\n",
+    fake_vm, *(void **)fake_vm, ((void **)fake_vm)[4],
+    fake_env, *(void **)fake_env);
+
   if (e_JNI_OnLoad) { debugPrintf(">> JNI_OnLoad...\n"); e_JNI_OnLoad(fake_vm, NULL); }
   debugPrintf(">> nativeSetupJNI...\n");
   e_nativeSetupJNI(fake_env);
