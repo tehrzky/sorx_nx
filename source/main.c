@@ -319,9 +319,10 @@ static volatile int s_sdl_thread_done = 0;
 static void dump_sdl_thread_state(void) {
   ThreadContext ctx;
   if (R_SUCCEEDED(svcGetThreadContext3(&ctx, s_sdl_thread.handle))) {
-    debugPrintf("[heartbeat] sdl_thread pc=%p lr=%p sp=%p x0=%p x8=%p\n",
-                (void *)ctx.pc, (void *)ctx.lr, (void *)ctx.sp,
-                (void *)ctx.cpu_gprs[0].x, (void *)ctx.cpu_gprs[8].x);
+    debugPrintf("[heartbeat] pc=%p lr=%p sp=%p\n",
+                (void *)(uintptr_t)ctx.pc,
+                (void *)(uintptr_t)ctx.lr,
+                (void *)(uintptr_t)ctx.sp);
   } else {
     debugPrintf("[heartbeat] svcGetThreadContext3 failed\n");
   }
