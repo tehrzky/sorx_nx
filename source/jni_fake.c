@@ -498,8 +498,16 @@ static juint j_unimplemented(void) { return 0; }
 // table assembly (indices per the JNI specification)
 // ---------------------------------------------------------------------------
 
-void *env_table[256];
-void *fake_env = &env_table[0];
+/* JavaVM / JNIEnv ABI:
+ *   JavaVM*  ->  ldr x8,[x0]      ; x8 = *(JavaVM*) = pointer to interface table
+ *                ldr x8,[x8,#32]  ; x8 = iface[4] = AttachCurrentThread
+ *                blr x8
+ * So the object SDL receives must be a 1-qword cell whose value is the table
+ * address. Same shape for JNIEnv*. */
+
+void *env_iface[256];                              /* the JNIEnv native-interface table */
+static struct { void *functions; } env_holder;     /* 1-qword cell for JNIEnv */
+void *fake_env = &env_holder;                      /* what callers see as JNIEnv* */
 
 static juint vm_DestroyJavaVM(void *vm) { (void)vm; return JNI_OK; }
 static juint vm_AttachCurrentThread(void *vm, void **env, void *args) {
@@ -509,95 +517,102 @@ static juint vm_DetachCurrentThread(void *vm) { (void)vm; return JNI_OK; }
 static juint vm_GetEnv(void *vm, void **env, int version) {
   (void)vm; (void)version; if (env) *env = fake_env; return JNI_OK;
 }
-void *vm_table[8];
-void *fake_vm = &vm_table[0];
+
+void *vm_iface[8];                                 /* the JavaVM invoke-interface table */
+static struct { void *functions; } vm_holder;      /* 1-qword cell for JavaVM */
+void *fake_vm = &vm_holder;                        /* what callers see as JavaVM* */
 
 void jni_init(void) {
   mutexInit(&locals_lock);
   init_singletons();
 
-  for (int i = 0; i < 256; i++) env_table[i] = (void *)j_unimplemented;
+  for (int i = 0; i < 256; i++) env_iface[i] = (void *)j_unimplemented;
 
-  env_table[4]   = (void *)j_GetVersion;
-  env_table[6]   = (void *)j_FindClass;
-  env_table[15]  = (void *)j_ExceptionOccurred;
-  env_table[16]  = (void *)j_void1; // ExceptionDescribe
-  env_table[17]  = (void *)j_void1; // ExceptionClear
-  env_table[19]  = (void *)j_PushLocalFrame;
-  env_table[20]  = (void *)j_PopLocalFrame;
-  env_table[21]  = (void *)j_NewGlobalRef;
-  env_table[22]  = (void *)j_DeleteGlobalRef;
-  env_table[23]  = (void *)j_DeleteLocalRef;
-  env_table[24]  = (void *)j_IsSameObject;
-  env_table[25]  = (void *)j_NewLocalRef;
-  env_table[26]  = (void *)j_EnsureLocalCapacity;
-  env_table[31]  = (void *)j_GetObjectClass;
-  env_table[33]  = (void *)j_GetMethodID;
-  env_table[34]  = (void *)j_CallObjectMethod;
-  env_table[35]  = (void *)j_CallObjectMethodV;
-  env_table[37]  = (void *)j_CallBooleanMethod;
-  env_table[38]  = (void *)j_CallBooleanMethodV;
-  env_table[49]  = (void *)j_CallIntMethod;
-  env_table[50]  = (void *)j_CallIntMethodV;
-  env_table[52]  = (void *)j_CallLongMethod;
-  env_table[53]  = (void *)j_CallLongMethodV;
-  env_table[55]  = (void *)j_CallFloatMethod;
-  env_table[56]  = (void *)j_CallFloatMethodV;
-  env_table[61]  = (void *)j_CallVoidMethod;
-  env_table[62]  = (void *)j_CallVoidMethodV;
-  env_table[94]  = (void *)j_GetFieldID;
-  env_table[95]  = (void *)j_GetObjectField;
-  env_table[100] = (void *)j_GetIntField;
-  env_table[101] = (void *)j_GetLongField;
-  env_table[102] = (void *)j_GetFloatField;
-  env_table[113] = (void *)j_GetMethodID;            // GetStaticMethodID
-  env_table[114] = (void *)j_CallStaticObjectMethod;
-  env_table[115] = (void *)j_CallStaticObjectMethodV;
-  env_table[117] = (void *)j_CallStaticBooleanMethod;
-  env_table[118] = (void *)j_CallStaticBooleanMethodV;
-  env_table[129] = (void *)j_CallStaticIntMethod;
-  env_table[130] = (void *)j_CallStaticIntMethodV;
-  env_table[132] = (void *)j_CallStaticLongMethod;
-  env_table[133] = (void *)j_CallStaticLongMethodV;
-  env_table[135] = (void *)j_CallStaticFloatMethod;
-  env_table[136] = (void *)j_CallStaticFloatMethodV;
-  env_table[141] = (void *)j_CallStaticVoidMethod;
-  env_table[142] = (void *)j_CallStaticVoidMethodV;
-  env_table[144] = (void *)j_GetFieldID;             // GetStaticFieldID
-  env_table[145] = (void *)j_GetObjectField;         // GetStaticObjectField
-  env_table[146] = (void *)j_GetIntField;            // GetStaticBooleanField (int-width ok)
-  env_table[150] = (void *)j_GetIntField;            // GetStaticIntField (SDK_INT)
-  env_table[164] = (void *)j_GetStringLength;
-  env_table[167] = (void *)j_NewStringUTF;
-  env_table[168] = (void *)j_GetStringUTFLength;
-  env_table[169] = (void *)j_GetStringUTFChars;
-  env_table[170] = (void *)j_ReleaseStringUTFChars;
-  env_table[171] = (void *)j_GetArrayLength;
-  env_table[172] = (void *)j_NewObjectArray;
-  env_table[173] = (void *)j_GetObjectArrayElement;
-  env_table[174] = (void *)j_SetObjectArrayElement;
-  env_table[176] = (void *)j_NewByteArray;
-  env_table[178] = (void *)j_NewShortArray;
-  env_table[179] = (void *)j_NewIntArray;
-  env_table[181] = (void *)j_NewFloatArray;
-  for (int i = 183; i <= 190; i++) env_table[i] = (void *)j_GetPriArrayElements;
-  for (int i = 191; i <= 198; i++) env_table[i] = (void *)j_ReleasePriArrayElements;
-  for (int i = 199; i <= 206; i++) env_table[i] = (void *)j_GetPriArrayRegion;
-  for (int i = 207; i <= 214; i++) env_table[i] = (void *)j_SetPriArrayRegion;
-  env_table[215] = (void *)j_RegisterNatives;
-  env_table[219] = (void *)j_GetJavaVM;
-  env_table[222] = (void *)j_GetPriArrayElements;     // GetPrimitiveArrayCritical
-  env_table[223] = (void *)j_ReleasePriArrayElements; // ReleasePrimitiveArrayCritical
-  env_table[226] = (void *)j_NewGlobalRef;            // NewWeakGlobalRef
-  env_table[227] = (void *)j_DeleteGlobalRef;         // DeleteWeakGlobalRef
-  env_table[228] = (void *)j_ExceptionCheck;
-  env_table[229] = (void *)j_NewDirectByteBuffer;
-  env_table[230] = (void *)j_GetDirectBufferAddress;
-  env_table[231] = (void *)j_GetDirectBufferCapacity;
+  env_iface[4]   = (void *)j_GetVersion;
+  env_iface[6]   = (void *)j_FindClass;
+  env_iface[15]  = (void *)j_ExceptionOccurred;
+  env_iface[16]  = (void *)j_void1; // ExceptionDescribe
+  env_iface[17]  = (void *)j_void1; // ExceptionClear
+  env_iface[19]  = (void *)j_PushLocalFrame;
+  env_iface[20]  = (void *)j_PopLocalFrame;
+  env_iface[21]  = (void *)j_NewGlobalRef;
+  env_iface[22]  = (void *)j_DeleteGlobalRef;
+  env_iface[23]  = (void *)j_DeleteLocalRef;
+  env_iface[24]  = (void *)j_IsSameObject;
+  env_iface[25]  = (void *)j_NewLocalRef;
+  env_iface[26]  = (void *)j_EnsureLocalCapacity;
+  env_iface[31]  = (void *)j_GetObjectClass;
+  env_iface[33]  = (void *)j_GetMethodID;
+  env_iface[34]  = (void *)j_CallObjectMethod;
+  env_iface[35]  = (void *)j_CallObjectMethodV;
+  env_iface[37]  = (void *)j_CallBooleanMethod;
+  env_iface[38]  = (void *)j_CallBooleanMethodV;
+  env_iface[49]  = (void *)j_CallIntMethod;
+  env_iface[50]  = (void *)j_CallIntMethodV;
+  env_iface[52]  = (void *)j_CallLongMethod;
+  env_iface[53]  = (void *)j_CallLongMethodV;
+  env_iface[55]  = (void *)j_CallFloatMethod;
+  env_iface[56]  = (void *)j_CallFloatMethodV;
+  env_iface[61]  = (void *)j_CallVoidMethod;
+  env_iface[62]  = (void *)j_CallVoidMethodV;
+  env_iface[94]  = (void *)j_GetFieldID;
+  env_iface[95]  = (void *)j_GetObjectField;
+  env_iface[100] = (void *)j_GetIntField;
+  env_iface[101] = (void *)j_GetLongField;
+  env_iface[102] = (void *)j_GetFloatField;
+  env_iface[113] = (void *)j_GetMethodID;            // GetStaticMethodID
+  env_iface[114] = (void *)j_CallStaticObjectMethod;
+  env_iface[115] = (void *)j_CallStaticObjectMethodV;
+  env_iface[117] = (void *)j_CallStaticBooleanMethod;
+  env_iface[118] = (void *)j_CallStaticBooleanMethodV;
+  env_iface[129] = (void *)j_CallStaticIntMethod;
+  env_iface[130] = (void *)j_CallStaticIntMethodV;
+  env_iface[132] = (void *)j_CallStaticLongMethod;
+  env_iface[133] = (void *)j_CallStaticLongMethodV;
+  env_iface[135] = (void *)j_CallStaticFloatMethod;
+  env_iface[136] = (void *)j_CallStaticFloatMethodV;
+  env_iface[141] = (void *)j_CallStaticVoidMethod;
+  env_iface[142] = (void *)j_CallStaticVoidMethodV;
+  env_iface[144] = (void *)j_GetFieldID;             // GetStaticFieldID
+  env_iface[145] = (void *)j_GetObjectField;         // GetStaticObjectField
+  env_iface[146] = (void *)j_GetIntField;            // GetStaticBooleanField
+  env_iface[150] = (void *)j_GetIntField;            // GetStaticIntField (SDK_INT)
+  env_iface[164] = (void *)j_GetStringLength;
+  env_iface[167] = (void *)j_NewStringUTF;
+  env_iface[168] = (void *)j_GetStringUTFLength;
+  env_iface[169] = (void *)j_GetStringUTFChars;
+  env_iface[170] = (void *)j_ReleaseStringUTFChars;
+  env_iface[171] = (void *)j_GetArrayLength;
+  env_iface[172] = (void *)j_NewObjectArray;
+  env_iface[173] = (void *)j_GetObjectArrayElement;
+  env_iface[174] = (void *)j_SetObjectArrayElement;
+  env_iface[176] = (void *)j_NewByteArray;
+  env_iface[178] = (void *)j_NewShortArray;
+  env_iface[179] = (void *)j_NewIntArray;
+  env_iface[181] = (void *)j_NewFloatArray;
+  for (int i = 183; i <= 190; i++) env_iface[i] = (void *)j_GetPriArrayElements;
+  for (int i = 191; i <= 198; i++) env_iface[i] = (void *)j_ReleasePriArrayElements;
+  for (int i = 199; i <= 206; i++) env_iface[i] = (void *)j_GetPriArrayRegion;
+  for (int i = 207; i <= 214; i++) env_iface[i] = (void *)j_SetPriArrayRegion;
+  env_iface[215] = (void *)j_RegisterNatives;
+  env_iface[219] = (void *)j_GetJavaVM;
+  env_iface[222] = (void *)j_GetPriArrayElements;     // GetPrimitiveArrayCritical
+  env_iface[223] = (void *)j_ReleasePriArrayElements; // ReleasePrimitiveArrayCritical
+  env_iface[226] = (void *)j_NewGlobalRef;            // NewWeakGlobalRef
+  env_iface[227] = (void *)j_DeleteGlobalRef;         // DeleteWeakGlobalRef
+  env_iface[228] = (void *)j_ExceptionCheck;
+  env_iface[229] = (void *)j_NewDirectByteBuffer;
+  env_iface[230] = (void *)j_GetDirectBufferAddress;
+  env_iface[231] = (void *)j_GetDirectBufferCapacity;
 
-  vm_table[3] = (void *)vm_DestroyJavaVM;
-  vm_table[4] = (void *)vm_AttachCurrentThread;
-  vm_table[5] = (void *)vm_DetachCurrentThread;
-  vm_table[6] = (void *)vm_GetEnv;
-  vm_table[7] = (void *)vm_AttachCurrentThread; // AttachCurrentThreadAsDaemon
+  vm_iface[3] = (void *)vm_DestroyJavaVM;
+  vm_iface[4] = (void *)vm_AttachCurrentThread;
+  vm_iface[5] = (void *)vm_DetachCurrentThread;
+  vm_iface[6] = (void *)vm_GetEnv;
+  vm_iface[7] = (void *)vm_AttachCurrentThread; // AttachCurrentThreadAsDaemon
+
+  /* Wire the holder cells. THIS is the fix: without these two lines,
+   * *(fake_vm) is NULL and SDL faults at ldr x8,[x8,#32]. */
+  vm_holder.functions  = &vm_iface[0];
+  env_holder.functions = &env_iface[0];
 }
