@@ -343,7 +343,7 @@ static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     t_in_handler = 1;
-    if (s_in_handler) {
+      if (s_in_handler) {
     const char *nwhich = "?";
     uintptr_t noff = 0;
     for (int i = 0; i < s_n_mods; i++) {
@@ -352,17 +352,16 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
       uintptr_t e = b + m->load_size;
       if (ctx->pc.x >= b && ctx->pc.x < e) { nwhich = s_load_list[i].name; noff = (uintptr_t)ctx->pc.x - b; break; }
     }
-    debugPrintf(">>> NESTED pc=%s+0x%x lr=%p x8=%llu esr=%x tls=%p depth=%d\n",
+    debugPrintf(">>> NESTED pc=%s+0x%x lr=%p x8=%llu esr=%x tls=%p\n",
                 nwhich, (unsigned)noff, (void *)ctx->lr.x,
                 (unsigned long long)ctx->cpu_gprs[8].x, ctx->esr,
-                (void *)armGetTls(),
-                (int)t_in_handler);
-    debugPrintf(">>> NESTED EXCEPTION -- svcReturnFromException is failing\n");
-    s_in_handler = 0;
-    svcSleepThread(300000000ULL);
+                (void *)armGetTls());
+    debugPrintf(">>> NESTED EXCEPTION -- stopping with fatal_error\n");
     t_in_handler = 0;
-    svcReturnFromException(0xF801); // fatal, do not return
-    return;
+    s_in_handler = 0;
+    fatal_error("Nested exception\npc=%p lr=%p esr=%x\ninside=%s+0x%x",
+                (void *)ctx->pc.x, (void *)ctx->lr.x, ctx->esr,
+                nwhich, (unsigned)noff);
   }
   s_in_handler = 1;
   unsigned ec = ctx->esr >> 26; // ARM-architected Exception Class
