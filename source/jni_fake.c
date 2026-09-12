@@ -514,8 +514,6 @@ static juint vm_AttachCurrentThread(void *vm, void **env, void *args) {
   debugPrintf(">> vm_AttachCurrentThread(vm=%p env=%p args=%p)\n", vm, env, args);
   (void)vm; (void)args; if (env) *env = fake_env; return JNI_OK;
 }
-  (void)vm; (void)args; if (env) *env = fake_env; return JNI_OK;
-}
 static juint vm_DetachCurrentThread(void *vm) { (void)vm; return JNI_OK; }
 static juint vm_GetEnv(void *vm, void **env, int version) {
   (void)vm; (void)version; if (env) *env = fake_env; return JNI_OK;
