@@ -392,20 +392,20 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   }
 
 
-       {
+      {
       extern void svcReturnFromException(Result res);
       uintptr_t ra = (uintptr_t)&svcReturnFromException;
-      // 8-byte function; +/- a small guard for compiler padding.
       if (ctx->pc.x >= ra && ctx->pc.x < ra + 0x10) {
-        static int return_path_hits = 0;
-        return_path_hits++;
-        if (return_path_hits > 3) {
-          debugPrintf(">>> svcReturnFromException failing (%d hits) -- hanging\n",
-                      return_path_hits);
-          t_in_handler = 0;
-          s_in_handler = 0;
-          for (;;) { __asm__ __volatile__("b ."); }
-        }
+        debugPrintf(">>> fault INSIDE svcReturnFromException pc=%p x8=%llu esr=%x lr=%p sp=%p\n",
+                    (void *)ctx->pc.x,
+                    (unsigned long long)ctx->cpu_gprs[8].x,
+                    ctx->esr,
+                    (void *)ctx->lr.x,
+                    (void *)ctx->sp.x);
+        debugPrintf(">>> exception return path itself faulted -- unrecoverable, hanging\n");
+        t_in_handler = 0;
+        s_in_handler = 0;
+        for (;;) { __asm__ __volatile__("b ."); }
       } else if (ctx->pc.x >= ra + 0x10 && ctx->pc.x < ra + 0x40) {
         // Near but not inside svcReturnFromException. Log and let normal
         // SVC handling continue -- it will either skip and resume, or
@@ -414,6 +414,10 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                     (void *)ctx->pc.x,
                     (unsigned long long)ctx->cpu_gprs[8].x,
                     ctx->esr);
+        debugPrintf(">>> near-return fault is unrecoverable, hanging\n");
+        t_in_handler = 0;
+        s_in_handler = 0;
+        for (;;) { __asm__ __volatile__("b ."); }
       }
     }
     // If the SVC came from the NRO itself (not a guest module), it's
@@ -456,33 +460,24 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
                   (unsigned long long)ctx->cpu_gprs[3].x);
       svc_log_count++;
     }
-        ctx->pc.x += 4;
+        if (svc_log_count < 20) {
+      debugPrintf(">>>   pre-skip: x8=%llu x0=%llx x1=%llx x2=%llx x3=%llx x4=%llx x5=%llx lr=%p\n",
+                  (unsigned long long)ctx->cpu_gprs[8].x,
+                  (unsigned long long)ctx->cpu_gprs[0].x,
+                  (unsigned long long)ctx->cpu_gprs[1].x,
+                  (unsigned long long)ctx->cpu_gprs[2].x,
+                  (unsigned long long)ctx->cpu_gprs[3].x,
+                  (unsigned long long)ctx->cpu_gprs[4].x,
+                  (unsigned long long)ctx->cpu_gprs[5].x,
+                  (void *)ctx->lr.x);
+    }
+    ctx->pc.x += 4;
     ctx->cpu_gprs[0].x = (u64)-38; // -ENOSYS
     if (svc_log_count < 20) {
       debugPrintf(">>> Resuming at %p <<<\n", (void *)ctx->pc.x);
     }
 
-    // Circuit-breaker: if we somehow ended up faulting inside
-    // svcReturnFromException itself, give up cleanly instead of looping.
-        {
-      extern void svcReturnFromException(Result res);
-      uintptr_t svc_ret_addr = (uintptr_t)&svcReturnFromException;
-      if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x10) {
-        // Definitely inside svcReturnFromException's own body.
-        debugPrintf(">>> Recursive fault inside svcReturnFromException pc=%p\n",
-                    (void *)ctx->pc.x);
-        t_in_handler = 0;
-        s_in_handler = 0;
-        for (;;) { __asm__ __volatile__("b ."); }
-      } else if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x40) {
-        // Close to but NOT inside svcReturnFromException. Log and continue.
-        debugPrintf(">>> SECOND fault near (not in) svcReturnFromException: pc=%p x8=%llu esr=%x\n",
-                    (void *)ctx->pc.x,
-                    (unsigned long long)ctx->cpu_gprs[8].x,
-                    ctx->esr);
-      }
-    }
-
+    
     t_in_handler = 0;
     s_in_handler = 0;
     svcReturnFromException(0);
@@ -604,7 +599,7 @@ int main(void) {
     so_free_temp(s_load_list[i].mod);
   debugPrintf("== init_arrays done ==\n");
 
-  write(1, "reached: about to call gpua_enable\n", 36);
+  debugPrintf(">> reached: about to call gpua_enable\n");
   gpua_enable();
   debugPrintf(">> gpua_enable done\n");
 
