@@ -321,7 +321,18 @@ static volatile int s_sdl_thread_done = 0;
 
 static void sdl_thread_fn(void *arg) {
   (void)arg;
-  debugPrintf(">> sdl_thread_fn entered\n");
+
+  // Give this thread a writable TLS base at TPIDR_EL0. libnx's default
+  // (used by the main thread) is writable, but raw svcCreateThread-created
+  // threads start with tpidr_el0 pointing at read-only zero storage, which
+  // makes every bionic-TLS / stack-canary access from guest code fault.
+  // Same fix Drastic uses in pthr_install_fake_tls().
+  {
+    uint8_t *tls = calloc(1, 0x200);
+    if (tls) armSetTlsRw(tls);
+  }
+
+  debugPrintf(">> sdl_thread_fn entered (TLS installed)\n");
   tls_setup_guard();
   debugPrintf(">> sdl_thread_fn after tls_setup_guard\n");
   void *cls = jni_activity_class();
