@@ -310,55 +310,6 @@ static void poll_input(void) {
   }
 }
 
-static Thread s_sdl_thread;
-static volatile int s_sdl_thread_done = 0;
-
-// Sample the SDL thread's live register state once a second while it's
-// stuck inside nativeOnSDLReady. If PC changes between samples, it's alive
-// and spinning in userspace. If PC stays fixed and x0-x18 read as zero,
-// the kernel is telling us it's genuinely parked inside a syscall.
-
-
-static void sdl_thread_fn(void *arg) {
-  (void)arg;
-
-  // Give this thread a writable TLS base at TPIDR_EL0. libnx's default
-  // (used by the main thread) is writable, but raw svcCreateThread-created
-  // threads start with tpidr_el0 pointing at read-only zero storage, which
-  // makes every bionic-TLS / stack-canary access from guest code fault.
-  // Same fix Drastic uses in pthr_install_fake_tls().
-  {
-    // Writable TLS at tpidr_el0. libnx's armSetTlsRw isn't available in
-    // this devkitA64 header set, so write the system register directly.
-    // tpidr_el0 is the read-write TLS base AArch64 -fstack-protector and
-    // bionic __thread access use; libnx's default for spawned threads
-    // points at read-only zero storage, which faults on first TLS access.
-    uint8_t *tls = calloc(1, 0x200);
-    if (tls) __asm__ __volatile__("msr tpidr_el0, %x0" :: "r"(tls));
-  }
-
-  debugPrintf(">> sdl_thread_fn entered (TLS installed)\n");
-  tls_setup_guard();
-  debugPrintf(">> sdl_thread_fn after tls_setup_guard\n");
-  void *cls = jni_activity_class();
-  debugPrintf(">> sdl_thread_fn after jni_activity_class\n");
-
-  // Ikemen GO expects SDL to call Java_..._nativeOnSDLReady with the
-  // asset directory before SDL_main runs. On Android the Java layer does
-  // that; on Switch there is no Java layer, so we call it ourselves.
-  if (e_nativeOnSDLReady) {
-    debugPrintf(">> nativeOnSDLReady(%s)\n", config.data_root);
-    e_nativeOnSDLReady(fake_env, cls, jni_new_string(config.data_root));
-    debugPrintf(">> nativeOnSDLReady returned\n");
-  } else {
-    debugPrintf(">> nativeOnSDLReady NOT FOUND in libopenbor.so\n");
-  }
-
-  debugPrintf(">> SDL thread: nativeRunMain...\n");
-  e_nativeRunMain(fake_env, cls, jni_new_string(OPENBOR_SO_NAME), jni_new_string("SDL_main"), NULL);
-  debugPrintf(">> SDL thread: SDL_main returned\n");
-  s_sdl_thread_done = 1;
-}
 
 // libnx calls this automatically instead of generating the default crash
 // report, if we define it ourselves. This gives us LIVE access to the
@@ -681,73 +632,27 @@ int main(void) {
   padInitializeAny(&pad);
   hidInitializeTouchScreen();
 
-  if (R_FAILED(threadCreate(&s_sdl_thread, sdl_thread_fn, NULL, NULL, 4 * 1024 * 1024, 0x3B, -2)))
-    fatal_error("Could not create the SDL thread.");
-  threadStart(&s_sdl_thread);
-  debugPrintf(">> SDL thread started\n");
+    if (e_nativeResume) e_nativeResume(fake_env, cls);
 
-  if (e_nativeResume) e_nativeResume(fake_env, cls);
-
-  int s_focused = 1, s_paused = 0;
-  uint64_t loop_iters = 0;
-  debugPrintf(">> entering main loop, initial appletGetFocusState()=%d (InFocus=%d)\n",
-              appletGetFocusState(), AppletFocusState_InFocus);
-
-  uint64_t last_pak = pak_bytes_total();
-  int boosted = 1;
-  int idle_frames = 0;
-#define BOOST_IDLE_TICKS 900
-    int frame_counter = 0;
-    while (appletMainLoop() && !s_sdl_thread_done) {
-    // Re-assert screen resolution every ~1 second in case SDL's Android
-    // surface globals were reset during pak switch / surface recreation.
-    // Doing this from the main thread avoids EGL-thread safety issues.
-    if (++frame_counter % 60 == 0 && e_nativeSetScreenResolution) {
-      e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
-                                   screen_width, screen_height, 1, 60.0f);
-    }
-
-    AppletFocusState fs = appletGetFocusState();
-    int focused = (fs == AppletFocusState_InFocus);
-    if (focused != s_focused) {
-      debugPrintf("[focus] changed: %d -> %d (fs=%d) at iter %llu\n", s_focused, focused, fs, (unsigned long long)loop_iters);
-      s_focused = focused;
-      if (!s_focused && !s_paused && e_nativePause) { e_nativePause(fake_env, cls); s_paused = 1; }
-      else if (s_focused && s_paused && e_nativeResume) { e_nativeResume(fake_env, cls); s_paused = 0; }
-    }
-    if (s_focused) poll_input();
-#if VERBOSE_IO
-    if (loop_iters % 120 == 0) debugPrintf("[main] loop heartbeat iter=%llu focused=%d\n", (unsigned long long)loop_iters, s_focused);
-#endif
-    if (loop_iters % 312 == 0) log_cpu_clock_periodic();
-    uint64_t cur_pak = pak_bytes_total();
-    if (cur_pak - last_pak > 64 * 1024 || g_video_playing) {
-      idle_frames = 0;
-      if (!boosted) {
-        cpu_boost(1);
-        boosted = 1;
-        debugPrintf("[boost] -> FastLoad at iter %llu (pak served=%lluMB)%s\n",
-                    (unsigned long long)loop_iters, (unsigned long long)(cur_pak >> 20),
-                    g_video_playing ? " (video playing)" : "");
-      }
-    } else if (boosted && ++idle_frames > BOOST_IDLE_TICKS) {
-      cpu_boost(0);
-      boosted = 0;
-      debugPrintf("[boost] -> Normal at iter %llu (pak served=%lluMB)\n",
-                  (unsigned long long)loop_iters, (unsigned long long)(cur_pak >> 20));
-    }
-    last_pak = cur_pak;
-    loop_iters++;
-    svcSleepThread(16 * 1000 * 1000);
+  // Run the guest engine on the MAIN thread. Secondary threads created
+  // via svcCreateThread have exception states that svcReturnFromException
+  // can't safely resume from; the main thread's does work. The guest's
+  // own SDL event pump drives appletMainLoop internally, so we don't
+  // need our own main loop.
+  if (e_nativeOnSDLReady) {
+    debugPrintf(">> nativeOnSDLReady(%s)\n", config.data_root);
+    e_nativeOnSDLReady(fake_env, cls, jni_new_string(config.data_root));
+    debugPrintf(">> nativeOnSDLReady returned\n");
+  } else {
+    debugPrintf(">> nativeOnSDLReady NOT FOUND in libopenbor.so\n");
   }
 
-  if (e_nativeQuit) e_nativeQuit(fake_env, cls);
+  debugPrintf(">> nativeRunMain on MAIN thread...\n");
+  e_nativeRunMain(fake_env, cls, jni_new_string(OPENBOR_SO_NAME), jni_new_string("SDL_main"), NULL);
+  debugPrintf(">> nativeRunMain returned\n");
+
+    if (e_nativeQuit) e_nativeQuit(fake_env, cls);
   else if (e_onNativeSurfaceDestroyed) e_onNativeSurfaceDestroyed(fake_env, cls);
-
-  for (int i = 0; i < 120 && !s_sdl_thread_done; i++)
-    svcSleepThread(16 * 1000 * 1000);
-
-  threadClose(&s_sdl_thread);
 
   extern void NX_NORETURN __libnx_exit(int rc);
   __libnx_exit(0);
