@@ -422,16 +422,28 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     // slow path, etc). Skipping those corrupts the exception context and
     // can leave PC=0. Hang instead -- the guest SVCs we actually want to
     // skip are never in openbor_nx.
-    if (which[0] != '?' && strcmp(which, "openbor_nx") == 0) {
-      debugPrintf(">>> NRO-internal SVC at +0x%x x8=%llu args=%p,%p,%p,%p,%p,%p -- hanging\n",
+        if (which[0] != '?' && strcmp(which, "openbor_nx") == 0) {
+      extern void svcReturnFromException(Result res);
+      uintptr_t ra = (uintptr_t)&svcReturnFromException;
+      int is_return_path = (ctx->pc.x >= ra && ctx->pc.x < ra + 0x20);
+
+      debugPrintf(">>> NRO-internal SVC +0x%x%s -- %s\n",
                   (unsigned)which_off,
-                  (unsigned long long)ctx->cpu_gprs[8].x,
-                  (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
-                  (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
-                  (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
+                  is_return_path ? " (svcReturnFromException)" : "",
+                  is_return_path ? "skipping" : "hanging");
+
+      if (!is_return_path) {
+        t_in_handler = 0;
+        s_in_handler = 0;
+        for (;;) { __asm__ __volatile__("b ."); }
+      }
+
+      ctx->pc.x += 4;
+      ctx->cpu_gprs[0].x = 0;
       t_in_handler = 0;
       s_in_handler = 0;
-      for (;;) { __asm__ __volatile__("b ."); }
+      svcReturnFromException(0);
+      return;
     }
                       
     static int svc_log_count = 0;
