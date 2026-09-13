@@ -423,7 +423,12 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     // can leave PC=0. Hang instead -- the guest SVCs we actually want to
     // skip are never in openbor_nx.
     if (which[0] != '?' && strcmp(which, "openbor_nx") == 0) {
-      debugPrintf(">>> NRO-internal SVC at +0x%x -- hanging\n", (unsigned)which_off);
+      debugPrintf(">>> NRO-internal SVC at +0x%x x8=%llu args=%p,%p,%p,%p,%p,%p -- hanging\n",
+                  (unsigned)which_off,
+                  (unsigned long long)ctx->cpu_gprs[8].x,
+                  (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
+                  (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
+                  (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
       t_in_handler = 0;
       s_in_handler = 0;
       for (;;) { __asm__ __volatile__("b ."); }
