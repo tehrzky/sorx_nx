@@ -417,6 +417,22 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     }
   }
 
+
+   static int return_path_hits = 0;
+    {
+      extern void svcReturnFromException(Result res);
+      uintptr_t ra = (uintptr_t)&svcReturnFromException;
+      if (ctx->pc.x >= ra && ctx->pc.x < ra + 0x20) {
+        return_path_hits++;
+        if (return_path_hits > 3) {
+          debugPrintf(">>> svcReturnFromException failing (%d hits) -- hanging\n",
+                      return_path_hits);
+          t_in_handler = 0;
+          s_in_handler = 0;
+          for (;;) { __asm__ __volatile__("b ."); }
+        }
+      }
+    }
     // If the SVC came from the NRO itself (not a guest module), it's
     // libnx-internal code (svcBreak, svcReturnFromException, mutexLock
     // slow path, etc). Skipping those corrupts the exception context and
