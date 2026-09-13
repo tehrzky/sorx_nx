@@ -642,7 +642,7 @@ int main(void) {
                          0xFFFFFFFF, 2, 0x3, 1);
   debugPrintf(">> nativeAddJoystick done + entering surface phase\n");
   }
-  debugPrintf(">> pre-onNativeSurfaceCreated checkpoint\n");
+    debugPrintf(">> pre-onNativeSurfaceCreated checkpoint\n");
   debugPrintf(">> onNativeSurfaceCreated entering\n");
   e_onNativeSurfaceCreated(fake_env, cls);
   debugPrintf(">> onNativeSurfaceCreated returned\n");
@@ -654,6 +654,7 @@ int main(void) {
   debugPrintf(">> pre-onNativeResize checkpoint\n");
   if (e_onNativeResize) { debugPrintf(">> onNativeResize entering\n"); e_onNativeResize(fake_env, cls); debugPrintf(">> onNativeResize done\n"); }
   debugPrintf(">> post-onNativeResize checkpoint\n");
+  debugPrintf(">> pre-onNativeSurfaceChanged checkpoint\n");
   if (e_onNativeSurfaceChanged) { debugPrintf(">> onNativeSurfaceChanged entering\n"); e_onNativeSurfaceChanged(fake_env, cls); debugPrintf(">> onNativeSurfaceChanged done\n"); }
   debugPrintf(">> post-onNativeSurfaceChanged checkpoint\n");
 
@@ -661,22 +662,24 @@ int main(void) {
   padInitializeAny(&pad);
   hidInitializeTouchScreen();
 
-        if (e_nativeResume) { debugPrintf(">> nativeResume entering\n"); e_nativeResume(fake_env, cls); debugPrintf(">> nativeResume done\n"); }
+  if (e_nativeResume) { debugPrintf(">> nativeResume entering\n"); e_nativeResume(fake_env, cls); debugPrintf(">> nativeResume done\n"); }
+  debugPrintf(">> post-nativeResume checkpoint\n");
 
   // Run the guest engine on the MAIN thread. Secondary threads created
   // via svcCreateThread have exception states that svcReturnFromException
   // can't safely resume from; the main thread's does work. The guest's
   // own SDL event pump drives appletMainLoop internally, so we don't
   // need our own main loop.
-    if (e_nativeOnSDLReady) {
+   if (e_nativeOnSDLReady) {
     debugPrintf(">> nativeOnSDLReady(%s) entering\n", config.data_root);
     e_nativeOnSDLReady(fake_env, cls, jni_new_string(config.data_root));
     debugPrintf(">> nativeOnSDLReady returned\n");
   } else {
     debugPrintf(">> nativeOnSDLReady NOT FOUND in libopenbor.so\n");
   }
+  debugPrintf(">> pre-nativeRunMain checkpoint\n");
 
-  debugPrintf(">> nativeRunMain on MAIN thread...\n");
+  debugPrintf(">> nativeRunMain on MAIN thread entering...\n");
   e_nativeRunMain(fake_env, cls, jni_new_string(OPENBOR_SO_NAME), jni_new_string("SDL_main"), NULL);
   debugPrintf(">> nativeRunMain returned\n");
 
