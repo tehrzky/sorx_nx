@@ -385,11 +385,12 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
   }
 
 
-   static int return_path_hits = 0;
-    {
+       {
       extern void svcReturnFromException(Result res);
       uintptr_t ra = (uintptr_t)&svcReturnFromException;
-      if (ctx->pc.x >= ra && ctx->pc.x < ra + 0x20) {
+      // 8-byte function; +/- a small guard for compiler padding.
+      if (ctx->pc.x >= ra && ctx->pc.x < ra + 0x10) {
+        static int return_path_hits = 0;
         return_path_hits++;
         if (return_path_hits > 3) {
           debugPrintf(">>> svcReturnFromException failing (%d hits) -- hanging\n",
@@ -398,6 +399,14 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
           s_in_handler = 0;
           for (;;) { __asm__ __volatile__("b ."); }
         }
+      } else if (ctx->pc.x >= ra + 0x10 && ctx->pc.x < ra + 0x40) {
+        // Near but not inside svcReturnFromException. Log and let normal
+        // SVC handling continue -- it will either skip and resume, or
+        // fail somewhere else and give us a new PC to look at.
+        debugPrintf(">>> NEAR-return fault (not inside svcReturnFromException): pc=%p x8=%llu esr=%x\n",
+                    (void *)ctx->pc.x,
+                    (unsigned long long)ctx->cpu_gprs[8].x,
+                    ctx->esr);
       }
     }
     // If the SVC came from the NRO itself (not a guest module), it's
