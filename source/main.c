@@ -447,13 +447,22 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
 
     // Circuit-breaker: if we somehow ended up faulting inside
     // svcReturnFromException itself, give up cleanly instead of looping.
-    {
+        {
       extern void svcReturnFromException(Result res);
       uintptr_t svc_ret_addr = (uintptr_t)&svcReturnFromException;
-      if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x40) {
+      if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x10) {
+        // Definitely inside svcReturnFromException's own body.
+        debugPrintf(">>> Recursive fault inside svcReturnFromException pc=%p\n",
+                    (void *)ctx->pc.x);
         t_in_handler = 0;
         s_in_handler = 0;
         for (;;) { __asm__ __volatile__("b ."); }
+      } else if (ctx->pc.x >= svc_ret_addr && ctx->pc.x < svc_ret_addr + 0x40) {
+        // Close to but NOT inside svcReturnFromException. Log and continue.
+        debugPrintf(">>> SECOND fault near (not in) svcReturnFromException: pc=%p x8=%llu esr=%x\n",
+                    (void *)ctx->pc.x,
+                    (unsigned long long)ctx->cpu_gprs[8].x,
+                    ctx->esr);
       }
     }
 
