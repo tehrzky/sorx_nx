@@ -613,7 +613,9 @@ int main(void) {
                          0xFFFFFFFF, 2, 0x3, 1);
   debugPrintf(">> nativeAddJoystick done, onNativeTouch=%p onNativeKeyDown=%p onNativePadDown=%p\n",
                 (void *)e_onNativeTouch, (void *)e_onNativeKeyDown, (void *)e_onNativePadDown);
+  debugPrintf(">> post-joystick checkpoint\n");
   }
+  debugPrintf(">> pre-onNativeSurfaceCreated checkpoint\n");
   debugPrintf(">> onNativeSurfaceCreated entering\n");
   e_onNativeSurfaceCreated(fake_env, cls);
   debugPrintf(">> onNativeSurfaceCreated returned\n");
