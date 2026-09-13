@@ -439,13 +439,14 @@ void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     }
                       
     static int svc_log_count = 0;
-    if (svc_log_count < 20) {
-      debugPrintf(">>> SVC in %s+0x%x at %p: x8=%llu args=%p,%p,%p,%p,%p,%p <<<\n",
+    if (svc_log_count < 200) {
+      debugPrintf(">>> SVC in %s+0x%x at %p: x8=%llu x0=%llx x1=%llx x2=%llx x3=%llx\n",
                   which, (unsigned)which_off, (void *)ctx->pc.x,
                   (unsigned long long)ctx->cpu_gprs[8].x,
-                  (void *)ctx->cpu_gprs[0].x, (void *)ctx->cpu_gprs[1].x,
-                  (void *)ctx->cpu_gprs[2].x, (void *)ctx->cpu_gprs[3].x,
-                  (void *)ctx->cpu_gprs[4].x, (void *)ctx->cpu_gprs[5].x);
+                  (unsigned long long)ctx->cpu_gprs[0].x,
+                  (unsigned long long)ctx->cpu_gprs[1].x,
+                  (unsigned long long)ctx->cpu_gprs[2].x,
+                  (unsigned long long)ctx->cpu_gprs[3].x);
       svc_log_count++;
     }
         ctx->pc.x += 4;
