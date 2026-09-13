@@ -649,24 +649,27 @@ int main(void) {
   if (e_nativeSetScreenResolution)
     e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
                                  screen_width, screen_height, 1, 60.0f);
-    debugPrintf(">> nativeSetScreenResolution(%d,%d)%s\n", screen_width, screen_height,
+  debugPrintf(">> nativeSetScreenResolution(%d,%d)%s\n", screen_width, screen_height,
               e_nativeSetScreenResolution ? "" : " -- NOT FOUND");
-  if (e_onNativeResize) { debugPrintf(">> onNativeResize...\n"); e_onNativeResize(fake_env, cls); debugPrintf(">> onNativeResize done\n"); }
-  if (e_onNativeSurfaceChanged) { debugPrintf(">> onNativeSurfaceChanged...\n"); e_onNativeSurfaceChanged(fake_env, cls); debugPrintf(">> onNativeSurfaceChanged done\n"); }
+  debugPrintf(">> pre-onNativeResize checkpoint\n");
+  if (e_onNativeResize) { debugPrintf(">> onNativeResize entering\n"); e_onNativeResize(fake_env, cls); debugPrintf(">> onNativeResize done\n"); }
+  debugPrintf(">> post-onNativeResize checkpoint\n");
+  if (e_onNativeSurfaceChanged) { debugPrintf(">> onNativeSurfaceChanged entering\n"); e_onNativeSurfaceChanged(fake_env, cls); debugPrintf(">> onNativeSurfaceChanged done\n"); }
+  debugPrintf(">> post-onNativeSurfaceChanged checkpoint\n");
 
   padConfigureInput(8, HidNpadStyleSet_NpadStandard);
   padInitializeAny(&pad);
   hidInitializeTouchScreen();
 
-    if (e_nativeResume) e_nativeResume(fake_env, cls);
+        if (e_nativeResume) { debugPrintf(">> nativeResume entering\n"); e_nativeResume(fake_env, cls); debugPrintf(">> nativeResume done\n"); }
 
   // Run the guest engine on the MAIN thread. Secondary threads created
   // via svcCreateThread have exception states that svcReturnFromException
   // can't safely resume from; the main thread's does work. The guest's
   // own SDL event pump drives appletMainLoop internally, so we don't
   // need our own main loop.
-  if (e_nativeOnSDLReady) {
-    debugPrintf(">> nativeOnSDLReady(%s)\n", config.data_root);
+    if (e_nativeOnSDLReady) {
+    debugPrintf(">> nativeOnSDLReady(%s) entering\n", config.data_root);
     e_nativeOnSDLReady(fake_env, cls, jni_new_string(config.data_root));
     debugPrintf(">> nativeOnSDLReady returned\n");
   } else {
