@@ -67,9 +67,10 @@
 extern int screen_width;
 extern int screen_height;
 
-// Android package id OpenBOR's SDL2 Android build expects for its data paths
-// (SDL_AndroidGetExternalStoragePath-style getters route through this).
-#define ANDROID_PKG "org.openbor.engine"
+// Android package id Ikemen GO's SDL2 Android build expects for its data
+// paths (SDL_AndroidGetExternalStoragePath-style getters route through
+// this). Confirmed from Ikemen GO's own Android build config.
+#define ANDROID_PKG "org.ikemen_engine.ikemen_go"
 
 typedef struct {
   int screen_width;   // -1 = auto
