@@ -172,7 +172,8 @@ int debugPrintf(char *text, ...) {
   if (locked) { if (++dbg_mutex_locks == 1) write(1, "[dbg] first mutexLock taken\n", 28); }
   else        { if (++dbg_mutex_skips == 1) write(1, "[dbg] first mutex skipped\n", 26); }
 
-  if (s_log_fd >= 0) write(s_log_fd, line, off);
+  // TEMP: SD write disabled so the tail isn't lost to FAT buffering.
+  // if (s_log_fd >= 0) write(s_log_fd, line, off);
   write(1, line, off);
 
   if (locked) mutexUnlock(&s_log_mutex);
