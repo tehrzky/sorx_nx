@@ -15,6 +15,14 @@
 // tls_setup_guard() covers for the older NDK r20 SDL2/hidapi builds).
 extern uintptr_t __stack_chk_guard;
 
+// pthread TLS key shims -- see libc_shim.c's own comment for why Go's
+// cgo runtime (runtime/cgo/inittls) needs these to store into the fake
+// TLS block at tpidr_el0 instead of newlib's private per-thread storage.
+int  sorx_pthread_key_create(unsigned int *key, void (*destructor)(void *));
+int  sorx_pthread_setspecific(unsigned int key, const void *value);
+void *sorx_pthread_getspecific(unsigned int key);
+int  sorx_pthread_key_delete(unsigned int key);
+
 // fortify (_chk): ignore the object-size argument
 void *__memcpy_chk_fake(void *dst, const void *src, size_t n, size_t dstlen);
 void *__memmove_chk_fake(void *dst, const void *src, size_t n, size_t dstlen);
