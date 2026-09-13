@@ -18,7 +18,7 @@
 #include "egl_shim.h"
 #include "libc_shim.h"
 #include "gpuarena.h"
-#include <switch/kernel/svc.h>
+
 
 extern char __end__[];
 
@@ -317,28 +317,7 @@ static volatile int s_sdl_thread_done = 0;
 // stuck inside nativeOnSDLReady. If PC changes between samples, it's alive
 // and spinning in userspace. If PC stays fixed and x0-x18 read as zero,
 // the kernel is telling us it's genuinely parked inside a syscall.
-static void dump_sdl_thread_state(void) {
-  /* Some header visible in this TU shadows libnx's ThreadContext with a
-     different layout (pc is a struct there, scalar in libnx's svc.h). Bypass
-     the type clash entirely: read the fields by offset from a raw buffer.
-     libnx svc.h layout order is: ... sp; lr; pc; so sp/lr/pc sit at the
-     tail of the struct. We'll grab them by scanning for plausible PC values
-     instead of trusting a fixed offset. */
-  unsigned char raw[0x400];
-  if (R_SUCCEEDED(svcGetThreadContext3((ThreadContext *)raw, s_sdl_thread.handle))) {
-    u64 *words = (u64 *)raw;
-    /* Find the first two consecutive words that look like a code/stack
-       address pair, then treat them as (pc, sp) or (sp, pc). We print the
-       whole tail so we can identify them visually on the next run. */
-    debugPrintf("[heartbeat] raw tail:");
-    for (int i = 0; i < 16; i++) {
-      debugPrintf(" %llx", (unsigned long long)words[0x40/8 + i]);
-    }
-    debugPrintf("\n");
-  } else {
-    debugPrintf("[heartbeat] svcGetThreadContext3 failed\n");
-  }
-}
+
 
 static void sdl_thread_fn(void *arg) {
   (void)arg;
@@ -616,12 +595,12 @@ int main(void) {
      JNI_OnLoad would, and that one isn't the entry point we call. Plant
      our fake_vm there so PLATFORM_hid_init's AttachCurrentThread(this) has
      a valid `this`. */
-  *(void **)((uintptr_t)sdl2_mod.load_virtbase + 0x225770) = fake_vm;
   debugPrintf(">> nativeSetupJNI...\n");
   e_nativeSetupJNI(fake_env);
-  if (e_audioSetupJNI) e_audioSetupJNI(fake_env);
-  if (e_controllerSetupJNI) e_controllerSetupJNI(fake_env);
-  if (e_nativeAddJoystick) {
+  if (e_audioSetupJNI) { debugPrintf(">> audioSetupJNI...\n"); e_audioSetupJNI(fake_env); debugPrintf(">> audioSetupJNI done\n"); }
+  if (e_controllerSetupJNI) { debugPrintf(">> controllerSetupJNI...\n"); e_controllerSetupJNI(fake_env); debugPrintf(">> controllerSetupJNI done\n"); }
+    if (e_nativeAddJoystick) {
+    debugPrintf(">> nativeAddJoystick entering\n");
     e_nativeAddJoystick(fake_env, cls, JOY_DEVICE_ID, jni_new_string("Switch Controller"),
                          jni_new_string("Switch Controller"), 0, 0, 0,
                          0xFFFFFFFF, 2, 0x3, 1);
@@ -629,15 +608,16 @@ int main(void) {
   }
   debugPrintf(">> resolved: onNativeTouch=%p onNativeKeyDown=%p onNativePadDown=%p\n",
               (void *)e_onNativeTouch, (void *)e_onNativeKeyDown, (void *)e_onNativePadDown);
-  debugPrintf(">> onNativeSurfaceCreated...\n");
+  debugPrintf(">> onNativeSurfaceCreated entering\n");
   e_onNativeSurfaceCreated(fake_env, cls);
+  debugPrintf(">> onNativeSurfaceCreated returned\n");
   if (e_nativeSetScreenResolution)
     e_nativeSetScreenResolution(fake_env, cls, screen_width, screen_height,
                                  screen_width, screen_height, 1, 60.0f);
-  debugPrintf(">> nativeSetScreenResolution(%d,%d)%s\n", screen_width, screen_height,
+    debugPrintf(">> nativeSetScreenResolution(%d,%d)%s\n", screen_width, screen_height,
               e_nativeSetScreenResolution ? "" : " -- NOT FOUND");
-  if (e_onNativeResize) e_onNativeResize(fake_env, cls);
-  if (e_onNativeSurfaceChanged) e_onNativeSurfaceChanged(fake_env, cls);
+  if (e_onNativeResize) { debugPrintf(">> onNativeResize...\n"); e_onNativeResize(fake_env, cls); debugPrintf(">> onNativeResize done\n"); }
+  if (e_onNativeSurfaceChanged) { debugPrintf(">> onNativeSurfaceChanged...\n"); e_onNativeSurfaceChanged(fake_env, cls); debugPrintf(">> onNativeSurfaceChanged done\n"); }
 
   padConfigureInput(8, HidNpadStyleSet_NpadStandard);
   padInitializeAny(&pad);
@@ -646,6 +626,7 @@ int main(void) {
   if (R_FAILED(threadCreate(&s_sdl_thread, sdl_thread_fn, NULL, NULL, 4 * 1024 * 1024, 0x3B, -2)))
     fatal_error("Could not create the SDL thread.");
   threadStart(&s_sdl_thread);
+  debugPrintf(">> SDL thread started\n");
 
   if (e_nativeResume) e_nativeResume(fake_env, cls);
 
@@ -681,7 +662,6 @@ int main(void) {
     if (loop_iters % 120 == 0) debugPrintf("[main] loop heartbeat iter=%llu focused=%d\n", (unsigned long long)loop_iters, s_focused);
 #endif
     if (loop_iters % 312 == 0) log_cpu_clock_periodic();
-    if (loop_iters % 60 == 0) dump_sdl_thread_state();
     uint64_t cur_pak = pak_bytes_total();
     if (cur_pak - last_pak > 64 * 1024 || g_video_playing) {
       idle_frames = 0;
