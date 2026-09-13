@@ -48,7 +48,7 @@
 // every JNI call (some, like getManifestEnvironmentVariables, are polled
 // continuously) -- same per-line cost problem as VERBOSE_IO. Requires
 // DEBUG_LOG too.
-#define VERBOSE_JNI 0
+#define VERBOSE_JNI 1
 // EGL/window lifecycle logging (config chosen, surface/context creation,
 // window dimensions, swap-buffer failures) plus per-draw-call GL state
 // tracing. Was on throughout the black-screen investigation (root cause:
