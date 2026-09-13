@@ -167,12 +167,12 @@ int debugPrintf(char *text, ...) {
   int locked = !t_in_handler;
   if (locked) locked = mutexTryLock(&s_log_mutex);
 
-  static int dbg_mutex_skips = 0;
+    static int dbg_mutex_skips = 0;
   static int dbg_mutex_locks = 0;
-  // TEMP (diagnostic): SD write disabled so the tail isn't lost to
-  // FAT/exFAT buffering during fast log cascades. Re-enable once the
-  // fault is captured via nxlink.
-  // if (s_log_fd >= 0) write(s_log_fd, line, off);
+  if (s_log_fd >= 0) {
+    write(s_log_fd, line, off);
+    fsync(s_log_fd);
+  }
   write(1, line, off);
 
   if (locked) mutexUnlock(&s_log_mutex);
