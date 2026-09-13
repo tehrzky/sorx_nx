@@ -589,6 +589,13 @@ int main(void) {
   debugPrintf(">> jni_activity_class done, cls=%p\n", cls);
 
   if (e_JNI_OnLoad) { debugPrintf(">> JNI_OnLoad...\n"); e_JNI_OnLoad(fake_vm, NULL); }
+  {
+    void **slot = (void **)((uintptr_t)sdl2_mod.load_virtbase + 0x225770);
+    debugPrintf(">> patching SDL2 mJavaVM at %p (old=%p new=%p)\n",
+                (void *)slot, *slot, fake_vm);
+    *slot = fake_vm;
+    debugPrintf(">> readback=%p\n", *slot);
+  }
   /* SDL2's built-in Android HID code has its OWN mJavaVM at link vaddr
      0x225770 (see disasm at 1b3000: adrp x8,225000 / ldr x0,[x8,#1904]).
      SDL's own JNI_OnLoad never sets it -- only SDL's hidapi's own
