@@ -35,6 +35,89 @@
 static int path_is_pak(const char *p);
 static void vpak_catalogs_build_once(void);
 
+
+// ---------------------------------------------------------------------------
+// pthread TLS keys: Go's cgo runtime (runtime/cgo/inittls) finds the offset
+// where it can stash the current-goroutine pointer by calling
+// pthread_setspecific() with a known magic value, then scanning the thread's
+// hardware TLS region (the memory at tpidr_el0) for it. Bionic stores
+// pthread-key values INSIDE that region; newlib stores them in its own
+// separate per-thread structure somewhere else entirely. If these calls
+// resolve to newlib's real implementations, the magic value lands in a place
+// Go's scan never looks, inittls fails ("could not find pthread key"), and
+// the Go runtime proceeds with a permanently broken scheduler -- which is
+// exactly the "everything breaks the first time Go does real scheduling
+// work" symptom we've been chasing.
+//
+// These replacements store the values directly inside the same 0x200-byte
+// TLS block that pthr_install_fake_tls() / tls_setup_guard() installs at
+// tpidr_el0 -- the block Go's scan actually reads. Layout mirrors bionic's:
+// the values live at a fixed offset past the stack-guard slot.
+//
+// The block is per-thread and installed by both main.c (tls_setup_guard)
+// and imports.c (thread_trampoline -> tls_setup_guard). This code just
+// reads the current thread's tpidr_el0 and treats the first bytes of that
+// block as the pthread key table.
+// ---------------------------------------------------------------------------
+
+// Max pthread keys Go's runtime actually creates. Bionic's PTHREAD_KEYS_MAX
+// is 128; Go uses a handful. 32 is generous.
+#define SORX_FAKE_KEY_MAX 32
+
+// Offset into the fake TLS block where we store the key-value table.
+// The block is 0x200 bytes. Reserve the first 0x80 bytes for stack-guard
+// and other bionic-touching slots (bionic's own TLS layout has the
+// stack-guard at +0x28 and misc small fields before +0x80), and put our
+// table at +0x80.
+#define SORX_FAKE_KEY_BASE 0x80
+
+// Max keys * 8 bytes = 32 * 8 = 256 bytes. + 0x80 base = 0x180, well
+// inside the 0x200-byte block.
+static uint64_t *fake_tls_key_slot(int key) {
+  if (key < 0 || key >= SORX_FAKE_KEY_MAX) return NULL;
+  // Read the current thread's tpidr_el0. This is the same register
+  // tls_setup_guard() writes. If nothing has been installed yet, this
+  // returns whatever libnx set up -- which may or may not be our block.
+  // Returns a pointer into it at the fixed offset.
+  uint64_t tls_base;
+  __asm__ __volatile__("mrs %x0, tpidr_el0" : "=r"(tls_base));
+  if (!tls_base) return NULL;
+  return (uint64_t *)((uintptr_t)tls_base + SORX_FAKE_KEY_BASE) + key;
+}
+
+static int sorx_pthread_key_create(unsigned int *key, void (*destructor)(void *)) {
+  (void)destructor;
+  // Allocate keys monotonically. We don't reuse keys, and we don't call the
+  // destructor -- both are fine for Go's usage (it creates a fixed small set
+  // of keys once at startup and never deletes them).
+  static unsigned int s_next_key = 0;
+  if (!key) return 22; // EINVAL
+  if (s_next_key >= SORX_FAKE_KEY_MAX) return 11; // EAGAIN
+  *key = s_next_key++;
+  return 0;
+}
+
+static int sorx_pthread_setspecific(unsigned int key, const void *value) {
+  uint64_t *slot = fake_tls_key_slot((int)key);
+  if (!slot) return 22; // EINVAL
+  *slot = (uint64_t)(uintptr_t)value;
+  return 0;
+}
+
+static void *sorx_pthread_getspecific(unsigned int key) {
+  uint64_t *slot = fake_tls_key_slot((int)key);
+  if (!slot) return NULL;
+  return (void *)(uintptr_t)*slot;
+}
+
+static int sorx_pthread_key_delete(unsigned int key) {
+  uint64_t *slot = fake_tls_key_slot((int)key);
+  if (slot) *slot = 0;
+  return 0;
+}
+
+
+
 // ---------------------------------------------------------------------------
 // Per-game extraction isolation: tracks which .pak is currently active and
 // redirects all asset paths into extracted/<PakName>/ so multiple .pak
