@@ -169,10 +169,9 @@ int debugPrintf(char *text, ...) {
 
   static int dbg_mutex_skips = 0;
   static int dbg_mutex_locks = 0;
-  if (locked) { if (++dbg_mutex_locks == 1) write(1, "[dbg] first mutexLock taken\n", 28); }
-  else        { if (++dbg_mutex_skips == 1) write(1, "[dbg] first mutex skipped\n", 26); }
-
-  // TEMP: SD write disabled so the tail isn't lost to FAT buffering.
+  // TEMP (diagnostic): SD write disabled so the tail isn't lost to
+  // FAT/exFAT buffering during fast log cascades. Re-enable once the
+  // fault is captured via nxlink.
   // if (s_log_fd >= 0) write(s_log_fd, line, off);
   write(1, line, off);
 
