@@ -614,9 +614,7 @@ int main(void) {
     e_nativeAddJoystick(fake_env, cls, JOY_DEVICE_ID, jni_new_string("Switch Controller"),
                          jni_new_string("Switch Controller"), 0, 0, 0,
                          0xFFFFFFFF, 2, 0x3, 1);
-  debugPrintf(">> nativeAddJoystick done, onNativeTouch=%p onNativeKeyDown=%p onNativePadDown=%p\n",
-                (void *)e_onNativeTouch, (void *)e_onNativeKeyDown, (void *)e_onNativePadDown);
-  debugPrintf(">> post-joystick checkpoint\n");
+  debugPrintf(">> nativeAddJoystick done + entering surface phase\n");
   }
   debugPrintf(">> pre-onNativeSurfaceCreated checkpoint\n");
   debugPrintf(">> onNativeSurfaceCreated entering\n");
