@@ -85,7 +85,7 @@ static uint64_t *fake_tls_key_slot(int key) {
   return (uint64_t *)((uintptr_t)tls_base + SORX_FAKE_KEY_BASE) + key;
 }
 
-static int sorx_pthread_key_create(unsigned int *key, void (*destructor)(void *)) {
+int sorx_pthread_key_create(unsigned int *key, void (*destructor)(void *)) {
   (void)destructor;
   // Allocate keys monotonically. We don't reuse keys, and we don't call the
   // destructor -- both are fine for Go's usage (it creates a fixed small set
@@ -97,20 +97,20 @@ static int sorx_pthread_key_create(unsigned int *key, void (*destructor)(void *)
   return 0;
 }
 
-static int sorx_pthread_setspecific(unsigned int key, const void *value) {
+int sorx_pthread_setspecific(unsigned int key, const void *value) {
   uint64_t *slot = fake_tls_key_slot((int)key);
   if (!slot) return 22; // EINVAL
   *slot = (uint64_t)(uintptr_t)value;
   return 0;
 }
 
-static void *sorx_pthread_getspecific(unsigned int key) {
+void *sorx_pthread_getspecific(unsigned int key) {
   uint64_t *slot = fake_tls_key_slot((int)key);
   if (!slot) return NULL;
   return (void *)(uintptr_t)*slot;
 }
 
-static int sorx_pthread_key_delete(unsigned int key) {
+int sorx_pthread_key_delete(unsigned int key) {
   uint64_t *slot = fake_tls_key_slot((int)key);
   if (slot) *slot = 0;
   return 0;
