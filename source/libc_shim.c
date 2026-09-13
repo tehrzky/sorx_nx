@@ -99,7 +99,8 @@ int sorx_pthread_key_create(unsigned int *key, void (*destructor)(void *)) {
 
 int sorx_pthread_setspecific(unsigned int key, const void *value) {
   uint64_t *slot = fake_tls_key_slot((int)key);
-  if (!slot) return 22; // EINVAL
+  if (!slot) return 22;
+  debugPrintf(">> pthread_setspecific(key=%u val=%p slot=%p)\n", key, value, (void *)slot);
   *slot = (uint64_t)(uintptr_t)value;
   return 0;
 }
