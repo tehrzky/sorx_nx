@@ -321,8 +321,11 @@ static volatile int s_sdl_thread_done = 0;
 
 static void sdl_thread_fn(void *arg) {
   (void)arg;
+  debugPrintf(">> sdl_thread_fn entered\n");
   tls_setup_guard();
+  debugPrintf(">> sdl_thread_fn after tls_setup_guard\n");
   void *cls = jni_activity_class();
+  debugPrintf(">> sdl_thread_fn after jni_activity_class\n");
 
   // Ikemen GO expects SDL to call Java_..._nativeOnSDLReady with the
   // asset directory before SDL_main runs. On Android the Java layer does
