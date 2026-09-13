@@ -320,6 +320,13 @@ static volatile int s_in_handler = 0;
 
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
     t_in_handler = 1;
+              static int entry_count = 0;
+    if (entry_count < 100) {
+      debugPrintf(">>> HANDLER ENTRY #%d pc=%p esr=%x ec=%x\n",
+                  entry_count, (void *)ctx->pc.x, ctx->esr,
+                  (unsigned)(ctx->esr >> 26));
+      entry_count++;
+    }
       if (s_in_handler) {
     const char *nwhich = "?";
     uintptr_t noff = 0;
