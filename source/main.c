@@ -328,8 +328,13 @@ static void sdl_thread_fn(void *arg) {
   // makes every bionic-TLS / stack-canary access from guest code fault.
   // Same fix Drastic uses in pthr_install_fake_tls().
   {
+    // Writable TLS at tpidr_el0. libnx's armSetTlsRw isn't available in
+    // this devkitA64 header set, so write the system register directly.
+    // tpidr_el0 is the read-write TLS base AArch64 -fstack-protector and
+    // bionic __thread access use; libnx's default for spawned threads
+    // points at read-only zero storage, which faults on first TLS access.
     uint8_t *tls = calloc(1, 0x200);
-    if (tls) armSetTlsRw(tls);
+    if (tls) __asm__ __volatile__("msr tpidr_el0, %x0" :: "r"(tls));
   }
 
   debugPrintf(">> sdl_thread_fn entered (TLS installed)\n");
