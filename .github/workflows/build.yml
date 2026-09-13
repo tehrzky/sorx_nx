@@ -68,12 +68,12 @@ jobs:
             exit 0
           fi
 
-          TARGET=$(printf "0x%x" $((0x$H + 0x3e7a3c)))
-          echo "===== target address (handler + 0x3e7a3c) ====="
-          echo "$TARGET"
-
-          echo "===== addr2line (function + source line) ====="
-          $A2L -f -C -e "$ELF" "$TARGET"
+          for OFF in 0x3e7d8c 0x3e7d7c 0x3e7d1c 0x3e7a3c; do
+            TARGET=$(printf "0x%x" $((0x$H + $OFF)))
+            echo "===== handler + $OFF = $TARGET ====="
+            $A2L -f -C -e "$ELF" "$TARGET"
+            echo
+          done
 
           echo "===== 40 instructions around target ====="
           DUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
